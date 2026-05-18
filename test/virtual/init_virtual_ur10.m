@@ -40,6 +40,9 @@ cfg.simStopTime = '10';
 cfg.experimentalCsvPath = fullfile(fileparts(baseDir), 'data', '05_10_173354', 'session_data.csv');
 cfg.scopeNames = {'scope_q','scope_dq','scope_tau'};
 cfg.motorGains = [13.6;13.2;12.9;9.5;9.1;8.4];
+cfg.collision = struct();
+cfg.collision.enable = true;
+cfg.collision.exemptions = {'base_jizuo-ur10','ur10'};
 cfg.currentModel = struct( ...
     'bias', zeros(6,1), ...
     'kq', [0.12;0.10;0.10;0.06;0.05;0.05], ...

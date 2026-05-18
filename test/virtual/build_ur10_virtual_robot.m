@@ -9,6 +9,7 @@ if ~isfile(opts.xacroPath)
 end
 
 robot = importFromXacro(opts.xacroPath, opts.meshDir);
+robot = stripVirtualOnlyCollisions(robot);
 
 jointNames = strings(1, 0);
 jointBodyNames = strings(1, 0);
@@ -18,6 +19,20 @@ for i = 1:numel(robot.Bodies)
         jointNames(end+1) = string(jt.Name); %#ok<AGROW>
         jointBodyNames(end+1) = string(robot.Bodies{i}.Name); %#ok<AGROW>
     end
+end
+
+function robot = stripVirtualOnlyCollisions(robot)
+% TCP 是参考点，不作为实体碰撞体参与可达性检测
+tcpBodyName = 'sensor_shovel_tcp';
+for i = 1:numel(robot.Bodies)
+    if strcmp(robot.Bodies{i}.Name, tcpBodyName)
+        try
+            clearCollision(robot.Bodies{i});
+        catch
+        end
+        break;
+    end
+end
 end
 
 if numel(jointNames) ~= 6

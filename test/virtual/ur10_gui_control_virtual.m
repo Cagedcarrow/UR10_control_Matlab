@@ -14,12 +14,13 @@ elseif nargin < 2 || isempty(cfg)
     cfg = init_virtual_ur10(baseDirLocal);
 end
 ensure_virtual_from_workspace_signals(cfg.sampleTime, 2);
+cfg.homeQ = loadHomeQFromCsv(cfg);
 
 state = struct();
 state.mode = '可编辑';
 cfg.jointLimitsRad = getRobotJointLimits(robot, cfg.jointLimitsRad);
-state.qCurrent = cfg.homeQ;
-state.qTarget = cfg.homeQ;
+state.qCurrent = validate_joint_vector(cfg.homeQ, cfg.jointLimitsRad);
+state.qTarget = state.qCurrent;
 state.robot = robot;
 state.cfg = cfg;
 state.model = mdl;
@@ -27,6 +28,8 @@ state.isReachable = false;
 state.rrtPath = zeros(0,6);
 state.previewTcpPath = zeros(0,3);
 state.execTcpPath = zeros(0,3);
+state.camFixed = [];
+state.isAnimating = false;
 
 ui.fig = figure('Name','UR10 纯虚拟控制界面','NumberTitle','off','Color','w', ...
     'Position',[100 80 1380 820], 'CloseRequestFcn',@onClose);
@@ -55,13 +58,17 @@ for i = 1:6
         'String',sprintf('第%d轴目标角(度)', i), 'BackgroundColor','w', 'HorizontalAlignment','left');
     ui.sliders(i) = uicontrol(ui.fig,'Style','slider','Position',[1000 y 260 22], ...
         'Min',rad2deg(cfg.jointLimitsRad(i,1)), 'Max',rad2deg(cfg.jointLimitsRad(i,2)), ...
-        'Value',0, 'Callback',@(src,~)onSlider(i,src));
+        'Value',rad2deg(state.qTarget(i)), 'Callback',@(src,~)onSlider(i,src));
     ui.sliderTxt(i) = uicontrol(ui.fig,'Style','text','Position',[1270 y 70 22], ...
         'String','0.00','BackgroundColor','w');
 end
 
 renderScene(true);
+for i = 1:6
+    ui.sliderTxt(i).String = sprintf('%.2f', rad2deg(state.qTarget(i)));
+end
 updateTcpText();
+setMsg(sprintf('初始关节角来自CSV/配置: [%.3f %.3f %.3f %.3f %.3f %.3f] rad', state.qCurrent));
 
     function onSlider(i, src)
         state.qTarget(i) = deg2rad(src.Value);
@@ -184,7 +191,127 @@ updateTcpText();
         n = max(2, ceil(d / 0.03));
         alpha = linspace(0, 1, n)';
         pathDense = (1 - alpha) .* q0 + alpha .* q1;
-        info = struct('Iterations', 0);
+        info = struct('Iterations', 0, 'CollisionChecked', false);
+
+        if isfield(cfg,'collision') && isfield(cfg.collision,'enable') && cfg.collision.enable
+            [ok, collisionMsg] = checkPathCollision(pathDense);
+            info.CollisionChecked = true;
+            if ~ok
+                fprintf(2, '[COLLISION] %s\n', collisionMsg);
+                error(collisionMsg);
+            end
+        end
+    end
+
+    function [ok, msg] = checkPathCollision(pathDense)
+        ok = true;
+        msg = '';
+        world = {};
+        exemptions = normalizeExemptions();
+        for k = 1:size(pathDense,1)
+            qk = pathDense(k,:);
+            [isColliding, pairs] = localCheckCollisionPairs(qk, world);
+            if ~isColliding
+                continue;
+            end
+            pairs = filterExemptPairs(pairs, exemptions);
+            if ~isempty(pairs)
+                ok = false;
+                msg = buildCollisionMessage(k, pairs);
+                return;
+            end
+        end
+    end
+
+    function msg = buildCollisionMessage(idx, pairs)
+        if isempty(pairs)
+            msg = sprintf('可达性碰撞：第%d个路径点发生碰撞（未返回碰撞对）。', idx);
+            return;
+        end
+        lines = strings(1, size(pairs,1));
+        for p = 1:size(pairs,1)
+            a = string(pairs{p,1});
+            b = string(pairs{p,2});
+            lines(p) = a + " <-> " + b;
+        end
+        msg = sprintf('可达性碰撞：第%d个路径点发生碰撞，碰撞对: %s', idx, strjoin(lines, '; '));
+    end
+
+    function pairs = sepMatrixToPairs(sep, robotObj)
+        pairs = {};
+        if isempty(sep) || ~ismatrix(sep)
+            return;
+        end
+        names = ['base', string(robotObj.BodyNames(:)')];
+        hasCollision = false(1, numel(names));
+        for b = 2:numel(names)
+            bodyObj = robotObj.getBody(char(names(b)));
+            hasCollision(b) = ~isempty(bodyObj.Collisions);
+        end
+        [r, c] = find(triu(isnan(sep), 1));
+        out = cell(0,2);
+        for t = 1:numel(r)
+            % 没有碰撞几何的body不参与真实碰撞判断，NaN属于无效分离距离
+            if ~hasCollision(r(t)) || ~hasCollision(c(t))
+                continue;
+            end
+            out(end+1,1) = {char(names(r(t)))}; %#ok<AGROW>
+            out(end,2) = {char(names(c(t)))}; %#ok<AGROW>
+        end
+        pairs = out;
+    end
+
+    function [isColliding, pairs] = localCheckCollisionPairs(qk, world)
+        try
+            [isColliding, sep] = checkCollision(state.robot, qk, world, ...
+                'IgnoreSelfCollision', 'off', ...
+                'SkippedSelfCollisions', 'parent');
+            pairs = sepMatrixToPairs(sep, state.robot);
+        catch
+            [isColliding, sep] = checkCollision(state.robot, qk, world, ...
+                'IgnoreSelfCollision', false, ...
+                'SkippedSelfCollisions', 'parent');
+            pairs = sepMatrixToPairs(sep, state.robot);
+        end
+    end
+
+    function ex = normalizeExemptions()
+        ex = strings(0,2);
+        if ~isfield(cfg,'collision') || ~isfield(cfg.collision,'exemptions') || isempty(cfg.collision.exemptions)
+            return;
+        end
+        raw = cfg.collision.exemptions;
+        if iscell(raw) && numel(raw) == 2 && ischar(raw{1}) && ischar(raw{2})
+            ex = [string(raw{1}) string(raw{2})];
+            return;
+        end
+        if iscell(raw) && size(raw,2) == 2
+            ex = strings(size(raw,1),2);
+            for i = 1:size(raw,1)
+                ex(i,1) = string(raw{i,1});
+                ex(i,2) = string(raw{i,2});
+            end
+        end
+    end
+
+    function kept = filterExemptPairs(pairs, ex)
+        if isempty(pairs) || isempty(ex)
+            kept = pairs;
+            return;
+        end
+        keepMask = true(size(pairs,1),1);
+        for i = 1:size(pairs,1)
+            a = string(pairs{i,1});
+            b = string(pairs{i,2});
+            for j = 1:size(ex,1)
+                x = ex(j,1); y = ex(j,2);
+                if (a == x && b == y) || (a == y && b == x)
+                    keepMask(i) = false;
+                    break;
+                end
+            end
+        end
+        kept = pairs(keepMask,:);
     end
 
     function out = runSegmentSim(tVec, qCmd)
@@ -196,6 +323,7 @@ updateTcpText();
         in = in.setVariable('dq_ref_ts', timeseries(expRef.dq, tVec(:)));
         in = in.setVariable('tau_csv_ref_ts', timeseries(expRef.tauCsv, tVec(:)));
         in = in.setVariable('tau_from_i_ref_ts', timeseries(expRef.tauFromCurrent, tVec(:)));
+        in = in.setBlockParameter([state.model '/JointSpaceMotionModel'], 'X0', mat2str(qCmd(1,:).'));
         in = in.setModelParameter('StopTime', num2str(tVec(end)));
         simOut = sim(in);
 
@@ -228,6 +356,8 @@ updateTcpText();
     end
 
     function playRobot(qSeries, clearPreview)
+        state.isAnimating = true;
+        cAnim = onCleanup(@() setAnimating(false)); %#ok<NASGU>
         for k = 1:size(qSeries,1)
             state.qCurrent = qSeries(k,:);
             renderScene(~clearPreview);
@@ -242,6 +372,7 @@ updateTcpText();
     end
 
     function renderScene(showGhost)
+        cam = captureCamera();
         cla(ui.ax);
         hold(ui.ax,'on');
         drawGround(ui.ax, cfg.groundSize);
@@ -274,8 +405,42 @@ updateTcpText();
 
         hold(ui.ax,'off');
         axis(ui.ax,'equal'); grid(ui.ax,'on');
-        view(ui.ax,cfg.guiView(1),cfg.guiView(2));
+        if ~state.isAnimating
+            restoreCamera(cam);
+        end
         drawnow;
+    end
+
+    function setAnimating(tf)
+        state.isAnimating = logical(tf);
+    end
+
+    function cam = captureCamera()
+        if isempty(state.camFixed)
+            cam = struct( ...
+                'CameraPosition', ui.ax.CameraPosition, ...
+                'CameraTarget', ui.ax.CameraTarget, ...
+                'CameraUpVector', ui.ax.CameraUpVector, ...
+                'CameraViewAngle', ui.ax.CameraViewAngle);
+            state.camFixed = cam;
+        else
+            cam = struct( ...
+                'CameraPosition', ui.ax.CameraPosition, ...
+                'CameraTarget', ui.ax.CameraTarget, ...
+                'CameraUpVector', ui.ax.CameraUpVector, ...
+                'CameraViewAngle', ui.ax.CameraViewAngle);
+            state.camFixed = cam;
+        end
+    end
+
+    function restoreCamera(cam)
+        if isempty(cam)
+            return;
+        end
+        ui.ax.CameraPosition = cam.CameraPosition;
+        ui.ax.CameraTarget = cam.CameraTarget;
+        ui.ax.CameraUpVector = cam.CameraUpVector;
+        ui.ax.CameraViewAngle = cam.CameraViewAngle;
     end
 
     function updateTcpText()
@@ -386,5 +551,28 @@ for i = 1:numel(robot.Bodies)
             jointLimits(j,:) = lim(:)';
         end
     end
+end
+end
+
+function qHome = loadHomeQFromCsv(cfg)
+qHome = cfg.homeQ;
+if ~isfield(cfg, 'experimentalCsvPath') || ~isfile(cfg.experimentalCsvPath)
+    return;
+end
+try
+    tbl = readtable(cfg.experimentalCsvPath);
+    if height(tbl) < 1
+        return;
+    end
+    row = tbl(1, :);
+    cols = {'Act_q0','Act_q1','Act_q2','Act_q3','Act_q4','Act_q5'};
+    if ~all(ismember(cols, row.Properties.VariableNames))
+        return;
+    end
+    q = [row.Act_q0, row.Act_q1, row.Act_q2, row.Act_q3, row.Act_q4, row.Act_q5];
+    if numel(q) == 6 && all(isfinite(q))
+        qHome = double(q);
+    end
+catch
 end
 end
