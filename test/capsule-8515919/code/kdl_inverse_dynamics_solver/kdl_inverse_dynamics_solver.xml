@@ -1,0 +1,7 @@
+<library path="kdl_inverse_dynamics_solver">
+  <class base_class_type="inverse_dynamics_solver::InverseDynamicsSolver"
+         type="inverse_dynamics_solver::InverseDynamicsSolverKDL"
+         name="inverse_dynamics_solver/InverseDynamicsSolverKDL">
+    <description>This is an InverseDynamicsSolverKDL plugin.</description>
+  </class>
+</library>

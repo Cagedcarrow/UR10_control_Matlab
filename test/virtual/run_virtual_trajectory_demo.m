@@ -4,12 +4,18 @@ function result = run_virtual_trajectory_demo(robot, mdl, demoCfg)
 if nargin < 3 || isempty(demoCfg)
     demoCfg = evalin('base','virtual_ur10_cfg');
 end
+ensure_virtual_from_workspace_signals(demoCfg.sampleTime, 2);
 
 [tVec, qCmd] = interp_joint_traj(demoCfg.demo.waypointsQ, demoCfg.demo.waypointTime, demoCfg.sampleTime, demoCfg.jointLimitsRad);
 
 qInput = timeseries(qCmd, tVec(:));
 in = Simulink.SimulationInput(mdl);
 in = in.setVariable('q_cmd_ts', qInput);
+z = zeros(numel(tVec),6);
+in = in.setVariable('q_ref_ts', timeseries(z, tVec(:)));
+in = in.setVariable('dq_ref_ts', timeseries(z, tVec(:)));
+in = in.setVariable('tau_csv_ref_ts', timeseries(z, tVec(:)));
+in = in.setVariable('tau_from_i_ref_ts', timeseries(z, tVec(:)));
 in = in.setModelParameter('StopTime', num2str(tVec(end)));
 
 if ~bdIsLoaded(mdl)

@@ -1,0 +1,16 @@
+metadata_version: 1
+name: The Dynamic Model of the UR10 Robot and its ROS2 Integration
+description: A ROS2 software module to solve the inverse dynamics model of serial
+  manipulators, with a concrete specialization for the 6-DOF UR10 industrial robot.
+tags:
+- ros2
+- robotics
+- dynamics
+authors:
+- name: Vincenzo Petrone
+  affiliations:
+  - name: Department of Information Engineering, Electrical Engineering and Applied
+      Mathematics (DIEM), University of Salerno
+corresponding_contributor:
+  name: Vincenzo Petrone
+  email: vipetrone@unisa.it

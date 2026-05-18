@@ -6,6 +6,7 @@ addpath(baseDir);
 addpath(fullfile(baseDir,'utils'));
 
 cfg = init_virtual_ur10(baseDir);
+ensure_virtual_from_workspace_signals(cfg.sampleTime, 2);
 [robot, robotCfg] = build_ur10_virtual_robot(cfg);
 mdl = create_or_load_virtual_simulink_model(robot, cfg);
 

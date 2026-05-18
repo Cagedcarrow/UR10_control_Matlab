@@ -1,5 +1,5 @@
 function [robot, meta] = build_ur10_virtual_robot(opts)
-% 从 assembly.urdf.xacro 导入并裁剪为固定虚拟链
+% 从 assembly.urdf.xacro 导入真实机械臂同源模型（与 ur10_gui_control.m 一致）
 
 if nargin < 1
     opts = init_virtual_ur10(fileparts(mfilename('fullpath')));
@@ -8,63 +8,39 @@ if ~isfile(opts.xacroPath)
     error('未找到xacro文件: %s', opts.xacroPath);
 end
 
-srcRobot = importFromXacro(opts.xacroPath, opts.meshDir);
-robot = rigidBodyTree('DataFormat','row','MaxNumBodies',8);
+robot = importFromXacro(opts.xacroPath, opts.meshDir);
 
-bodyOrder = { ...
-    'ur10_shoulder', ...
-    'ur10_upper_arm', ...
-    'ur10_forearm', ...
-    'ur10_wrist_1', ...
-    'ur10_wrist_2', ...
-    'ur10_wrist_3', ...
-    'sensor_shovel', ...
-    'sensor_shovel_tcp'};
-
-parentMap = containers.Map( ...
-    bodyOrder, ...
-    {'base','ur10_shoulder','ur10_upper_arm','ur10_forearm','ur10_wrist_1','ur10_wrist_2','ur10_wrist_3','sensor_shovel'});
-
-for i = 1:numel(bodyOrder)
-    bodyName = bodyOrder{i};
-    srcBody = srcRobot.getBody(bodyName);
-    newBody = srcBody.copy();
-
-    if strcmp(bodyName, 'ur10_shoulder')
-        Tmount = trvec2tform([0 0 opts.baseHeight]) * eul2tform(opts.mountRPY, 'XYZ');
-        j = newBody.Joint;
-        setFixedTransform(j, Tmount * j.JointToParentTransform);
-        newBody.Joint = j;
+jointNames = strings(1, 0);
+jointBodyNames = strings(1, 0);
+for i = 1:numel(robot.Bodies)
+    jt = robot.Bodies{i}.Joint;
+    if strcmp(jt.Type, 'revolute')
+        jointNames(end+1) = string(jt.Name); %#ok<AGROW>
+        jointBodyNames(end+1) = string(robot.Bodies{i}.Name); %#ok<AGROW>
     end
-
-    if strcmp(newBody.Joint.Type, 'revolute')
-        idx = find(strcmp(opts.jointNames, newBody.Joint.Name), 1);
-        if ~isempty(idx)
-            newBody.Joint.PositionLimits = opts.jointLimitsRad(idx,:);
-        end
-    end
-
-    addBody(robot, newBody, parentMap(bodyName));
 end
 
-jointNames = {};
-for i = 1:numel(robot.Bodies)
-    jn = robot.Bodies{i}.Joint.Name;
-    if ~isempty(jn) && ~strcmp(robot.Bodies{i}.Joint.Type, 'fixed')
-        jointNames{end+1} = jn; %#ok<AGROW>
+if numel(jointNames) ~= 6
+    error('导入模型的可动关节数为 %d，期望为 6。', numel(jointNames));
+end
+
+jointCfgIdx = zeros(1, 6);
+cfgNames = jointNames;
+for i = 1:6
+    idx = find(cfgNames == string(opts.jointNames{i}), 1);
+    if isempty(idx)
+        error('在导入模型中未找到关节: %s', opts.jointNames{i});
     end
+    jointCfgIdx(i) = idx;
 end
 
 meta = struct();
 meta.endEffector = 'sensor_shovel_tcp';
 meta.bodyNames = [{'ur10'}; robot.BodyNames(:)];
-meta.jointNames = jointNames;
+meta.jointNames = cellstr(jointNames);
+meta.jointBodyNames = cellstr(jointBodyNames);
+meta.jointCfgIdx = jointCfgIdx;
 meta.sourceXacro = opts.xacroPath;
-
-expectedJoints = {'ur10_shoulder_pan','ur10_shoulder_lift','ur10_elbow','ur10_wrist_1','ur10_wrist_2','ur10_wrist_3'};
-if numel(jointNames) ~= 6 || ~isequal(jointNames, expectedJoints)
-    error('关节链校验失败，当前关节顺序不符合要求。');
-end
 end
 
 function robot = importFromXacro(xacroPath, meshDir)

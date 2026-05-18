@@ -1,108 +1,193 @@
-# UR10 MATLAB 实时同步与控制说明
+# UR10 Virtual Simulink 与电流模型拟合说明
 
-本项目用于将真实 UR10 机械臂姿态实时映射到 MATLAB，并通过 GUI 滑轨下发关节目标控制机械臂运动。
-
-## 1. 真实通讯协议与端口
-
-本项目使用 **UR 控制器 TCP 接口**，不是 ROS 话题桥接。
-
-- **30003 端口**：读取实时状态流（主要用 `q_actual` 六轴关节角）
-- **30002 端口**：发送 URScript 控制命令（例如 `movej(...)`、`stopj(...)`）
-
-### 1.1 状态流数据格式（30003）
-
-读取逻辑基于 UR realtime 包：
-
-1. 包头前 4 字节是 **大端 int32 包长度**（常见长度 `1220`）
-2. 后续为多组大端 double 数据
-3. 项目中使用 `q_actual`（6 个关节角，单位 rad）作为真实姿态来源
-
-### 1.2 指令下发（30002）
-
-使用 TCP 文本发送 URScript，一行一条命令，带换行：
-
-- 运动：
-  `movej([q1,q2,q3,q4,q5,q6],a=...,v=...,t=...,r=...)`
-- 停止：
-  `stopj(2.0)`
+本仓库当前重点是 `E:\UR10_control\test\virtual` 的纯 MATLAB/Simulink 虚拟链路：
+1. 在 GUI 内完成轨迹规划与动画执行。
+2. 在 Simulink 内输出 `q/dq/tau/i_est`。
+3. 用 `data` 目录实测 CSV 做“估算电流 vs 实测电流”批量评估。
 
 ---
 
-## 2. 常见问题：字节偏移与包解析
+## 1. 目录与入口
 
-实时同步最容易出错的地方是 **字节偏移（offset）** 与 **包对齐（sync）**。
+核心目录：`E:\UR10_control\test\virtual`
 
-### 2.1 偏移错误的典型表现
+关键入口：
+- `startup_virtual_ur10.m`：一键启动（建模 + GUI）
+- `ur10_gui_control_virtual.m`：虚拟交互控制主界面
+- `create_or_load_virtual_simulink_model.m`：程序化搭建 Simulink 模型
+- `evaluate_current_estimation_batch.m`：批量电流评估入口
 
-如果 `q_actual` 起始偏移错 1 字节，常见现象是：
+辅助文件：
+- `init_virtual_ur10.m`：统一参数配置（采样周期、增益、模型参数）
+- `utils/estimate_current_simple.m`：当前电流估算函数
+- `utils/ensure_virtual_from_workspace_signals.m`：From Workspace 占位变量自愈
 
-- 初始姿态无法对齐真实机械臂
-- 姿态突变/乱跳
-- 读包看似成功，但关节值异常
-- 连续超时或“无有效包”
+### 1.1 机器人模型来源（已切换）
 
-### 2.2 本项目关键点
+`virtual` 侧现在不再使用裁剪后的简化链模型，而是改为与 `E:\UR10_control\ur10_gui_control.m` 同源的真实机械臂模型导入方式：
+- 数据源：`assembly/assembly.urdf.xacro`
+- 导入方式：`importrobot(..., 'DataFormat','row')`
+- 网格路径：`assembly/meshes`
 
-- 使用大端解析 `int32` 包长
-- 对包长做合法性筛选（例如 `1220/1116/1108`）
-- 采用缓存+重同步策略，不直接假设每次读取都是完整包
-- `q_actual` 使用修正后的正确偏移（避免 off-by-one）
-
-这部分是“能否稳定实时显示”的决定性因素。
-
----
-
-## 3. 为什么关闭碰撞检测后可以稳定控制真机
-
-当前版本 GUI 为了优先保证“可操作性与稳定性”，默认 **关闭碰撞检测**（仅保留软限位检查）。原因如下：
-
-1. **模型与真机不完全一致**
-   - URDF 网格、连杆近似、安装偏差会导致模型判碰撞与真实情况不一致。
-
-2. **MATLAB 版本差异导致行为不一致**
-   - `checkCollision` 在不同版本的参数支持、跳过规则（`SkippedSelfCollisions`）存在差异。
-
-3. **误报会直接阻断执行链**
-   - 误判碰撞会导致“检查失败 -> 按钮不解锁 -> 无法下发控制指令”。
-
-4. **当前需求优先级**
-   - 当前目标是先实现“真实机械臂可稳定控制 + 姿态实时一致”。
-
-因此本版本策略是：
-
-- 实时姿态严格跟随 `q_actual`
-- 目标通过滑轨设置
-- 通过“预演并解锁”放行执行
-- 不在 GUI 内做模型碰撞阻塞
-
-> 注意：关闭碰撞检测后，操作安全责任转移到人工与现场安全策略（速度、限位、急停、安全围栏）。
+也就是说，`ur10_gui_control_virtual.m` 在未传入 robot 时，通过 `build_ur10_virtual_robot.m` 构建的是与真机控制脚本一致的 URDF/Xacro 模型源，只是在 `virtual` 场景下用于仿真与数据评估。
 
 ---
 
-## 4. 当前控制流程（无碰撞检测版）
+## 2. Simulink 节点搭建（`create_or_load_virtual_simulink_model`）
 
-1. 启动 GUI，连接 `30003`
-2. MATLAB 模型实时显示真实姿态
-3. 调整滑轨得到目标关节角
-4. 点击“预演并解锁”（仅校验软限位）
-5. 点击“开始运动”发送 `movej`
-6. 必要时点击“急停”发送 `stopj`
+模型名默认：`ur10_virtual_jointspace`
+
+### 2.1 输入层（From Workspace）
+
+使用 5 路时序输入：
+- `q_cmd_ts`：仿真关节命令
+- `q_ref_ts`：实验关节角参考
+- `dq_ref_ts`：实验关节速度参考
+- `tau_csv_ref_ts`：CSV 中 `tau_estimated_*` 参考
+- `tau_from_i_ref_ts`：由实测电流重算的力矩参考
+
+> 若 base workspace 被清空，`ensure_virtual_from_workspace_signals` 会自动补 5 路占位 timeseries，避免模型直接报错。
+
+### 2.2 运动与动力学链
+
+模型主链如下：
+
+1. `JointSpaceMotionModel`（离散状态空间）
+- 用 `q_cmd_ts` 生成 `q_actual`
+- 平滑系数：`virtual_ur10_alpha`
+
+2. `dq_actual`、`ddq_est`
+- 对 `q_actual` 做离散求导，得到速度和加速度估计
+
+3. `estimate_current`（Interpreted MATLAB Function）
+- 调用 `estimate_current_simple(q,dq,ddq,kq,kdq,kddq,b)`
+- 输出 `i_est`
+
+4. `tau_est`
+- `tau_est = motor_gain .* i_est`
+
+### 2.3 输出层
+
+Outport 共 4 路：
+- Port1: `q_actual_out`
+- Port2: `dq_actual_out`
+- Port3: `tau_est_out`
+- Port4: `i_est_out`
+
+### 2.4 Scope 对比
+
+默认三个 Scope：
+- `scope_q`：`q_actual` vs `q_ref`
+- `scope_dq`：`dq_actual` vs `dq_ref`
+- `scope_tau`：`tau_est` vs `tau_csv_ref` vs `tau_from_i_ref`
 
 ---
 
-## 5. 安全建议
+## 3. GUI 工作流（`ur10_gui_control_virtual`）
 
-- 先低速参数验证：小 `a`、小 `v`
-- 每次只改一个关节做小步测试
-- 保持急停可达
-- 确认 Remote Control 模式与现场无干涉风险
-- 上线前再考虑恢复碰撞检测（并结合现场标定）
+GUI 流程：
+1. 调滑轨设置目标关节角。
+2. `检查可达性`：RRT 规划。
+3. `点击预执行`：仿真并回到起点。
+4. `点击正式执行`：仿真 + 动画播放。
+5. 动画结束后自动弹 Scope，并写出 `virtual_ur10_sim_data`。
+
+`virtual_ur10_sim_data` 当前字段：
+- `t`, `q`, `dq`, `tau`, `iEst`, `tcpPos`, `ref`
 
 ---
 
-## 6. 相关脚本
+## 4. 论文电流模型在本工程中的落地方式
 
-- `ur10_realtime_sync.m`：实时姿态同步验证脚本
-- `ur10_gui_control.m`：GUI 实时控制主程序（当前为无碰撞检测版）
-- `show_assembly_urdf.m`：URDF/Xacro 预处理与显示
+### 4.1 当前实现定位
 
+当前不是完整论文辨识器复刻，而是“可运行的首版近似链路”：
+
+- 估算电流：
+  `i_est = b + kq.*q + kdq.*dq + kddq.*ddq`
+
+- 力矩估算：
+  `tau_est = K .* i_est`
+
+参数来源统一在 `init_virtual_ur10.m`：
+- `cfg.motorGains`
+- `cfg.currentModel.bias / kq / kdq / kddq`
+
+### 4.2 与实测数据对比来源
+
+CSV（如 `data/05_10_173354/session_data.csv`）主要字段：
+- `Act_q0~Act_q5`
+- `Act_qd0~Act_qd5`
+- `Act_I0~Act_I5`
+- `tau_estimated_0~tau_estimated_5`
+
+GUI 在线模式会对齐这些字段做参考曲线显示。
+
+---
+
+## 5. 批量拟合评估（`evaluate_current_estimation_batch`）
+
+目标：在 `data` 目录批量计算“估算电流 vs 实测电流”误差。
+
+### 5.1 默认行为
+
+- 递归扫描：`data/**/session_data.csv`
+- 每文件执行：
+  1. 读取 `Act_q*`, `Act_qd*`, `Act_I*`
+  2. 驱动虚拟模型仿真
+  3. 取 `i_est` 与 `Act_I*` 对比
+  4. 统计每轴 `RMSE/MAE/MaxAbs`
+
+### 5.2 输出物
+
+默认输出目录：`test/virtual/outputs/current_eval/`
+
+包含：
+- `summary.csv`：每个 session 的统计
+- `overall_report.md`：总体统计、最差样本
+- `*_current_compare.png`：每个 session 的 6 轴对比图（按 `maxPlots` 控制）
+
+### 5.3 调用示例
+
+```matlab
+addpath('E:/UR10_control/test/virtual');
+cfg = init_virtual_ur10('E:/UR10_control/test/virtual');
+
+% 全量评估
+opts = struct('outputDir','E:/UR10_control/test/virtual/outputs/current_eval', ...
+              'maxPlots',20);
+r = evaluate_current_estimation_batch('E:/UR10_control/test/data', cfg, opts);
+
+% 单文件评估
+opts = struct('singleFile','E:/UR10_control/test/data/05_10_173354/session_data.csv', ...
+              'outputDir','E:/UR10_control/test/virtual/outputs/current_eval_single', ...
+              'maxPlots',1);
+r1 = evaluate_current_estimation_batch('E:/UR10_control/test/data', cfg, opts);
+```
+
+---
+
+## 6. 已知现状与下一步
+
+当前链路已打通：
+- Simulink 节点可生成 `q/dq/tau/i_est`
+- 可批量产出 `i_est vs Act_I` 统计与图表
+
+但首版参数仍为固定经验值，误差可能较大。下一步建议：
+1. 以 `summary.csv` 为目标函数，做 `kq/kdq/kddq/b` 参数拟合。
+2. 分工况拟合（静止段/动态段），避免单一参数覆盖全部动作。
+3. 拟合后复跑批量评估，比较 RMSE 降幅。
+
+---
+
+## 7. 快速启动
+
+```matlab
+cd('E:/UR10_control/test/virtual');
+startup_virtual_ur10;
+```
+
+启动后按 GUI 顺序执行：
+- 检查可达性 -> 预执行 -> 正式执行
+
+正式执行动画结束后会弹出 Simulink Scope 并更新 `virtual_ur10_sim_data`。

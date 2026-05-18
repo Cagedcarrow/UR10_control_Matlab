@@ -1,0 +1,10 @@
+# Inertial parameters of the payload
+
+# Payload mass [kg]
+mass: 0.0
+
+# Payload center of mass coordinates (x,y,z) [m]
+center_of_mass: [0.0, 0.0, 0.0]
+
+# Payload inertia tensor (Ixx, Ixy, Ixz, Iyy, Iyz, Izz) [kg m^2]
+inertia_tensor: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]

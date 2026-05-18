@@ -1,0 +1,18 @@
+# Ignore tabular data exports
+*.csv
+
+# Ignore image assets/outputs
+*.png
+*.jpg
+*.jpeg
+*.bmp
+*.gif
+*.tif
+*.tiff
+*.webp
+*.svg
+*.heic
+*.heif
+*.txt
+*.xlsx
+*.docx

@@ -7,11 +7,13 @@ addpath(fullfile(baseDirLocal,'utils'));
 
 if nargin < 1 || isempty(robot)
     cfg = init_virtual_ur10(baseDirLocal);
+    ensure_virtual_from_workspace_signals(cfg.sampleTime, 2);
     [robot, ~] = build_ur10_virtual_robot(cfg);
     mdl = create_or_load_virtual_simulink_model(robot, cfg);
 elseif nargin < 2 || isempty(cfg)
     cfg = init_virtual_ur10(baseDirLocal);
 end
+ensure_virtual_from_workspace_signals(cfg.sampleTime, 2);
 
 state = struct();
 state.mode = '可编辑';
@@ -78,7 +80,7 @@ updateTcpText();
             q1 = validate_joint_vector(state.qTarget, cfg.jointLimitsRad);
             [pathDense, info] = planRRTPath(q0, q1);
             if isempty(pathDense)
-                error('RRT未找到可行路径。');
+                error('未找到可行路径。');
             end
             state.rrtPath = pathDense;
             state.isReachable = true;
@@ -86,7 +88,7 @@ updateTcpText();
             ui.btnExec.Enable = 'on';
             setMode('可执行');
             iterTxt = localGetIterText(info);
-            setMsg(sprintf('可达性检查通过（RRT路径点: %d%s）。', size(pathDense,1), iterTxt));
+            setMsg(sprintf('可达性检查通过（路径点: %d%s）。', size(pathDense,1), iterTxt));
             renderScene(true);
             updateTcpText();
         catch ME
@@ -147,12 +149,15 @@ updateTcpText();
             simData.t = out.tActual;
             simData.q = out.qActual;
             simData.dq = out.dqActual;
+            simData.tau = out.tauEst;
+            simData.iEst = out.iEst;
             simData.tcpPos = out.tcpPos;
+            simData.ref = out.expRef;
             assignin('base','virtual_ur10_sim_data',simData);
-            plotExecutionSignals(simData);
+            openScopeWindows();
 
             setMode('停止/完成');
-            setMsg('正式执行完成，已更新 virtual_ur10_sim_data（t/q/dq/tcpPos）。');
+            setMsg('正式执行完成，已更新 virtual_ur10_sim_data（t/q/dq/tau/iEst/tcpPos），并弹出Simulink Scope。');
             renderScene(false);
             updateTcpText();
         catch ME
@@ -163,7 +168,7 @@ updateTcpText();
 
     function [tVec, qCmd] = expandRRTPathToCmd(rrtPath)
         if isempty(rrtPath) || size(rrtPath,1) < 2
-            error('RRT路径为空，请先检查可达性。');
+            error('路径为空，请先检查可达性。');
         end
         segLen = vecnorm(diff(rrtPath,1,1),2,2);
         dist = [0; cumsum(segLen)];
@@ -173,47 +178,53 @@ updateTcpText();
     end
 
     function [pathDense, info] = planRRTPath(q0, q1)
-        planner = manipulatorRRT(state.robot, {});
-        planner.MaxConnectionDistance = 0.25;
-        planner.ValidationDistance = 0.05;
-        planner.MaxIterations = 5000;
-        planner.IgnoreSelfCollision = false;
-        planner.SkippedSelfCollisions = 'parent';
-
-        [pathRaw, info] = plan(planner, q0, q1);
-        if isempty(pathRaw)
-            pathDense = [];
-            return;
-        end
-        pathShort = shorten(planner, pathRaw, 40);
-        pathDense = interpolate(planner, pathShort, 120);
+        q0 = q0(:)';
+        q1 = q1(:)';
+        d = norm(q1 - q0, 2);
+        n = max(2, ceil(d / 0.03));
+        alpha = linspace(0, 1, n)';
+        pathDense = (1 - alpha) .* q0 + alpha .* q1;
+        info = struct('Iterations', 0);
     end
 
     function out = runSegmentSim(tVec, qCmd)
         qInput = timeseries(qCmd, tVec(:));
+        expRef = loadExperimentalReference(tVec(:), cfg);
         in = Simulink.SimulationInput(state.model);
         in = in.setVariable('q_cmd_ts', qInput);
+        in = in.setVariable('q_ref_ts', timeseries(expRef.q, tVec(:)));
+        in = in.setVariable('dq_ref_ts', timeseries(expRef.dq, tVec(:)));
+        in = in.setVariable('tau_csv_ref_ts', timeseries(expRef.tauCsv, tVec(:)));
+        in = in.setVariable('tau_from_i_ref_ts', timeseries(expRef.tauFromCurrent, tVec(:)));
         in = in.setModelParameter('StopTime', num2str(tVec(end)));
         simOut = sim(in);
 
         y = simOut.yout;
         if isa(y, 'Simulink.SimulationData.Dataset')
-            sig = y.getElement(1).Values;
-            tActual = sig.Time;
-            qActual = sig.Data;
+            qSig = y.getElement(1).Values;
+            dqSig = y.getElement(2).Values;
+            tauSig = y.getElement(3).Values;
+            iSig = y.getElement(4).Values;
+            tActual = qSig.Time;
+            qActual = qSig.Data;
+            dqActual = dqSig.Data;
+            tauEst = tauSig.Data;
+            iEst = iSig.Data;
         else
             tActual = y.time;
-            qActual = y.signals.values;
+            qActual = y.signals(1).values;
+            dqActual = y.signals(2).values;
+            tauEst = y.signals(3).values;
+            iEst = y.signals(4).values;
         end
 
-        dq = gradient(qActual, max(cfg.sampleTime, eps));
         n = size(qActual,1);
         tcp = zeros(n,3);
         for k = 1:n
             [~, tcp(k,:), ~] = fk_tcp_pose(state.robot, qActual(k,:));
         end
 
-        out = struct('tActual',tActual,'qActual',qActual,'dqActual',dq,'tcpPos',tcp);
+        out = struct('tActual',tActual,'qActual',qActual,'dqActual',dqActual,'tauEst',tauEst,'iEst',iEst,'tcpPos',tcp,'expRef',expRef);
     end
 
     function playRobot(qSeries, clearPreview)
@@ -293,35 +304,61 @@ updateTcpText();
         end
     end
 
-    function plotExecutionSignals(simData)
-        figName = 'UR10 正式执行关节数据';
-        oldFig = findall(groot, 'Type', 'figure', 'Name', figName);
-        if ~isempty(oldFig)
+    function openScopeWindows()
+        if ~isfield(cfg,'scopeNames') || isempty(cfg.scopeNames)
+            return;
+        end
+        for k = 1:numel(cfg.scopeNames)
+            blk = [state.model '/' cfg.scopeNames{k}];
+            if isempty(find_system(state.model,'SearchDepth',1,'Name',cfg.scopeNames{k}))
+                continue;
+            end
             try
-                delete(oldFig);
+                open_system(blk);
             catch
             end
         end
+    end
 
-        fig = figure('Name', figName, 'NumberTitle', 'off', 'Color', 'w', ...
-            'Position', [220 120 980 700]);
-        tl = tiledlayout(fig, 2, 1, 'Padding', 'compact', 'TileSpacing', 'compact');
+    function expRef = loadExperimentalReference(tVec, cfgLocal)
+        n = numel(tVec);
+        expRef = struct('q',zeros(n,6),'dq',zeros(n,6),'tauCsv',zeros(n,6),'tauFromCurrent',zeros(n,6));
+        csvPath = cfgLocal.experimentalCsvPath;
+        if ~isfile(csvPath)
+            setMsg(sprintf('实验CSV不存在，使用零参考：%s', csvPath));
+            return;
+        end
+        try
+            tbl = readtable(csvPath);
+            qExp = tableToMatrixCols(tbl,'Act_q');
+            dqExp = tableToMatrixCols(tbl,'Act_qd');
+            iExp = tableToMatrixCols(tbl,'Act_I');
+            tauCsv = tableToMatrixCols(tbl,'tau_estimated_');
+            tauFromI = iExp .* reshape(cfgLocal.motorGains,1,6);
 
-        nexttile(tl, 1);
-        plot(simData.t, simData.q, 'LineWidth', 1.2);
-        grid on;
-        xlabel('t (s)');
-        ylabel('q (rad)');
-        title('六轴关节角度');
-        legend({'J1','J2','J3','J4','J5','J6'}, 'Location', 'eastoutside');
+            m = min([size(qExp,1), size(dqExp,1), size(tauCsv,1), size(tauFromI,1)]);
+            if m < 2
+                error('实验数据长度不足。');
+            end
+            idx = round(linspace(1,m,n));
+            expRef.q = qExp(idx,:);
+            expRef.dq = dqExp(idx,:);
+            expRef.tauCsv = tauCsv(idx,:);
+            expRef.tauFromCurrent = tauFromI(idx,:);
+        catch ME
+            setMsg(['加载实验CSV失败，已回退零参考：' ME.message]);
+        end
+    end
 
-        nexttile(tl, 2);
-        plot(simData.t, simData.dq, 'LineWidth', 1.2);
-        grid on;
-        xlabel('t (s)');
-        ylabel('dq (rad/s)');
-        title('六轴关节速度');
-        legend({'J1','J2','J3','J4','J5','J6'}, 'Location', 'eastoutside');
+    function mat = tableToMatrixCols(tbl, prefix)
+        mat = zeros(height(tbl),6);
+        for j = 1:6
+            col = [prefix num2str(j-1)];
+            if ~ismember(col, tbl.Properties.VariableNames)
+                error('缺少列: %s', col);
+            end
+            mat(:,j) = tbl.(col);
+        end
     end
 
     function onClose(~,~)
