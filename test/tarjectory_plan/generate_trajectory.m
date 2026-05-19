@@ -1,15 +1,22 @@
-function traj = generate_trajectory(thetaDeg, d, phiDeg)
+function traj = generate_trajectory(x0, z0, thetaDeg, d, phiDeg)
 % 生成三段连续轨迹：直线切入 + 圆弧装载 + 沿姿态抬升
 
 theta = deg2rad(thetaDeg);
 phi = deg2rad(phiDeg);
 
-p0 = [0, 0];
+p0 = [x0, z0];
 dir1 = [cos(theta), sin(theta)];
 
+downComp = -dir1(2);
+if downComp < 1e-6
+    downComp = 1e-6;
+end
+lineLen = (z0 + d) / downComp;
+
 n1 = 80;
-s1 = linspace(0, d, n1)';
+s1 = linspace(0, lineLen, n1)';
 seg1 = p0 + s1 .* dir1;
+seg1(end,2) = -d;
 
 p1 = seg1(end,:);
 R = max(0.20, 0.9 * d);
@@ -26,11 +33,7 @@ seg2 = [center(1) + R*cos(a), center(2) + R*sin(a)];
 
 p2 = seg2(end,:);
 
-endHeading = theta + phi;
-dir3 = [cos(endHeading), sin(endHeading)];
-if dir3(2) < 0
-    dir3 = -dir3;
-end
+dir3 = [0, 1];
 
 liftLen = max(0.25, 1.15 * d);
 
@@ -38,7 +41,6 @@ n3 = 90;
 s3 = linspace(0, liftLen, n3)';
 seg3 = p2 + s3 .* dir3;
 
-seg1 = seg1(1:end-1,:);
 seg2 = seg2(1:end-1,:);
 allPts = [seg1; seg2; seg3];
 
@@ -57,5 +59,7 @@ traj.p2 = p2;
 traj.thetaDeg = thetaDeg;
 traj.depth = d;
 traj.phiDeg = phiDeg;
+traj.x0 = x0;
+traj.z0 = z0;
 
 end
