@@ -3,7 +3,7 @@ function show_assembly_urdf()
 
 clc;
 
-xacroPath = 'E:/UR10_control/assembly/assembly.urdf.xacro';
+xacroPath = fullfile(fileparts(mfilename('fullpath')), 'assembly', 'assembly.urdf.xacro');
 meshRootName = 'meshes';
 
 fprintf('[INFO] xacro path: %s\n', xacroPath);
@@ -44,7 +44,7 @@ end
 
 figure('Name', 'assembly URDF Preview', 'Color', 'w');
 ax = axes; %#ok<LAXES>
-show(robot, 'Visuals', 'on', 'Collisions', 'off', 'Frames', 'off', 'Parent', ax);
+show(robot, 'Visuals', 'on', 'Collisions', 'off', 'Frames', 'on', 'Parent', ax);
 axis(ax, 'equal');
 grid(ax, 'on');
 view(ax, 135, 20);

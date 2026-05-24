@@ -24,7 +24,7 @@ end
 cfg.robotIp = '10.160.9.21';
 cfg.readPort = 30003;
 cfg.cmdPort = 30002;
-cfg.xacroPath = 'E:/UR10_control/assembly/assembly.urdf.xacro';
+cfg.xacroPath = fullfile(fileparts(mfilename('fullpath')), 'assembly', 'assembly.urdf.xacro');
 cfg.meshRootName = 'meshes';
 cfg.samplePeriod = 0.05;
 cfg.streamStaleSec = 1.0;

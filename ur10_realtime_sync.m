@@ -11,7 +11,7 @@ end
 robotIp = '10.160.9.21';
 robotPort = 30003;              % UR realtime interface (preferred)
 samplePeriod = 0.03;            % ~33 Hz rendering
-xacroPath = 'E:/UR10_control/assembly/assembly.urdf.xacro';
+xacroPath = fullfile(fileparts(mfilename('fullpath')), 'assembly', 'assembly.urdf.xacro');
 meshRootName = 'meshes';
 
 fprintf('[INFO] Robot IP: %s, Port: %d\n', robotIp, robotPort);
