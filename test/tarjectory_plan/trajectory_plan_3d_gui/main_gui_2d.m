@@ -18,14 +18,27 @@ ylabel(ax, 'Z (m)');
     [state.envGeom.basin.ySafetyMargin, state.envGeom.basin.innerWidthY - state.envGeom.basin.ySafetyMargin], ...
     state.params.leftWallOffset);
 [state.ui.sMudHeight, state.ui.valMudHeight] = addSliderBlock(fig, 25, 530, '泥面高度 hMud (mm)', [0.00 0.18], state.params.mudHeight);
-[state.ui.sTheta, state.ui.valTheta] = addSliderBlock(fig, 25, 460, '入泥角度 theta (deg)', [-60 -5], state.params.thetaDeg);
-[state.ui.sDepth, state.ui.valDepth] = addSliderBlock(fig, 25, 390, '入泥深度 d (m)', [0.02 0.08], state.params.depth);
+[state.ui.sApproachLen, state.ui.valApproachLen] = addSliderBlock(fig, 25, 460, '起始运动斜线长度 L (m)', [0.00 0.30], state.params.approachLen);
+[state.ui.sTheta, state.ui.valTheta] = addSliderBlock(fig, 25, 390, '入泥角度 theta (deg)', [-60 -5], state.params.thetaDeg);
+[state.ui.sDepth, state.ui.valDepth] = addSliderBlock(fig, 25, 320, '入泥深度 d (垂直, m)', [0.01 0.1], state.params.depth);
+
+state.ui.lblLen = uilabel(fig, 'Position', [25 250 300 22], 'Text', '', 'FontSize', 11);
+state.ui.lblProjX = uilabel(fig, 'Position', [25 225 300 22], 'Text', '', 'FontSize', 11);
+state.ui.lblProjZ = uilabel(fig, 'Position', [25 200 300 22], 'Text', '', 'FontSize', 11);
+
+state.ui.btnExport = uibutton(fig, 'push', ...
+    'Position', [25 155 280 30], ...
+    'Text', '导出参数为 YAML', ...
+    'ButtonPushedFcn', @(src, evt) exportYaml(fig));
 
 state.ui.lblInfo = uilabel(fig, ...
-    'Position', [25 180 300 92], ...
+    'Position', [25 28 300 118], ...
     'Text', sprintf(['查看说明:\n' ...
                      '当前图只用于查看二维轨迹形状。\n' ...
                      '入泥点始终位于泥面上。\n' ...
+                     '起始运动点由斜线长度和入泥角反推。\n' ...
+                     '入泥深度 d 表示相对泥面的垂直下扎深度。\n' ...
+                     '滑条上下限定义在本文件和 build_gui_state.m。\n' ...
                      '蓝色点线是当前原生 YOZ 轨迹。']), ...
     'FontSize', 11);
 
@@ -35,6 +48,7 @@ fig.UserData = state;
 
 registerSliderCallbacks(fig, state.ui.sWallOffset, 'leftWallOffset');
 registerSliderCallbacks(fig, state.ui.sMudHeight, 'mudHeight');
+registerSliderCallbacks(fig, state.ui.sApproachLen, 'approachLen');
 registerSliderCallbacks(fig, state.ui.sTheta, 'thetaDeg');
 registerSliderCallbacks(fig, state.ui.sDepth, 'depth');
 
@@ -83,8 +97,12 @@ end
 function updateValueLabels(state)
 state.ui.valWallOffset.Text = sprintf('当前值: %.3f m', state.params.leftWallOffset);
 state.ui.valMudHeight.Text = sprintf('当前值: %.0f mm', 1000 * state.params.mudHeight);
+state.ui.valApproachLen.Text = sprintf('当前值: %.3f m', state.params.approachLen);
 state.ui.valTheta.Text = sprintf('当前值: %.1f deg', state.params.thetaDeg);
 state.ui.valDepth.Text = sprintf('当前值: %.3f m', state.params.depth);
+state.ui.lblLen.Text = sprintf('斜线总长度 L: %.3f m', state.traj.approachLen);
+state.ui.lblProjX.Text = sprintf('世界 X 投影: %.3f m', state.traj.approachProjX);
+state.ui.lblProjZ.Text = sprintf('世界 Z 投影: %.3f m', state.traj.approachProjZ);
 end
 
 function plotTrajectory2D(ax, traj, basin)
@@ -133,4 +151,62 @@ title(ax, sprintf('二维轨迹查看 | 左侧距 = %.3f m | hMud = %.0f mm | th
     traj.leftWallOffset, 1000 * (basin.mudSurfaceZ - basin.floorZ), traj.thetaDeg, traj.depth));
 
 hold(ax, 'off');
+end
+
+function exportYaml(fig)
+state = fig.UserData;
+yamlPath = fullfile(fileparts(mfilename('fullpath')), 'trajectory_params_2d.yaml');
+yamlText = buildYamlText(state);
+
+fid = fopen(yamlPath, 'w', 'n', 'UTF-8');
+if fid < 0
+    uialert(fig, sprintf('无法写入 YAML 文件:\n%s', yamlPath), '导出失败');
+    return;
+end
+cleanupObj = onCleanup(@() fclose(fid));
+fwrite(fid, yamlText, 'char');
+clear cleanupObj;
+
+uialert(fig, sprintf('参数已导出到:\n%s', yamlPath), '导出完成', 'Icon', 'success');
+end
+
+function yamlText = buildYamlText(state)
+traj = state.traj;
+timestamp = char(datetime('now', 'Format', 'yyyy-MM-dd HH:mm:ss'));
+
+lines = {
+    'metadata:'
+    sprintf('  exported_at: "%s"', timestamp)
+    '  source_gui: "main_gui_2d"'
+    'parameters:'
+    sprintf('  left_wall_offset: %.6f', state.params.leftWallOffset)
+    sprintf('  mud_height: %.6f', state.params.mudHeight)
+    sprintf('  approach_len: %.6f', state.params.approachLen)
+    sprintf('  theta_deg: %.6f', state.params.thetaDeg)
+    sprintf('  depth: %.6f', state.params.depth)
+    'derived_values:'
+    sprintf('  entry_point: [%.6f, %.6f]', traj.pEntry(1), traj.pEntry(2))
+    sprintf('  approach_start_point: [%.6f, %.6f]', traj.pApproachStart(1), traj.pApproachStart(2))
+    sprintf('  arc_end_point: [%.6f, %.6f]', traj.pArcEnd(1), traj.pArcEnd(2))
+    sprintf('  approach_length: %.6f', traj.approachLen)
+    sprintf('  arc_radius: %.6f', traj.arcRadius)
+    sprintf('  vertical_penetration: %.6f', traj.verticalPenetration)
+    sprintf('  approach_proj_x: %.6f', traj.approachProjX)
+    sprintf('  approach_proj_z: %.6f', traj.approachProjZ)
+    'meanings:'
+    '  left_wall_offset: "入泥点到左侧壁的水平距离，单位 m"'
+    '  mud_height: "泥面距盆底的高度，单位 m"'
+    '  approach_len: "起始运动点到入泥点的斜线长度，单位 m"'
+    '  theta_deg: "入泥角，负值表示向下切入，单位 deg"'
+    '  depth: "入泥点相对泥面的实际垂直下扎深度，单位 m"'
+    '  entry_point: "YOZ 截面内的入泥点 [Y, Z]"'
+    '  approach_start_point: "YOZ 截面内的起始运动点 [Y, Z]"'
+    '  arc_end_point: "圆弧转平结束点 [Y, Z]"'
+    '  arc_radius: "根据入泥角和垂直入泥深度反算得到的圆弧半径，单位 m"'
+    '  vertical_penetration: "圆弧终点相对泥面的实际垂直下扎深度，单位 m"'
+    '  approach_proj_x: "当前二维/三维约定下世界 X 方向投影；二维逻辑未引入 X 位移，因此为 0"'
+    '  approach_proj_z: "起始运动斜线在世界 Z 方向的投影，单位 m"'
+    };
+
+yamlText = sprintf('%s\n', lines{:});
 end

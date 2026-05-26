@@ -25,6 +25,8 @@ traj3d.thetaDeg = traj2d.thetaDeg;
 traj3d.depth = traj2d.depth;
 traj3d.leftWallOffset = traj2d.leftWallOffset;
 traj3d.radius = traj2d.radius;
+traj3d.arcRadius = traj2d.arcRadius;
+traj3d.verticalPenetration = traj2d.verticalPenetration;
 end
 
 function pts3 = liftPoints(pts2, xPlane)

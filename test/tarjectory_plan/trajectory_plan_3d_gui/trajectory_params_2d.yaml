@@ -1,0 +1,31 @@
+metadata:
+  exported_at: "2026-05-26 09:58:40"
+  source_gui: "main_gui_2d"
+parameters:
+  left_wall_offset: 0.220930
+  mud_height: 0.108000
+  approach_len: 0.182400
+  theta_deg: -47.625000
+  depth: 0.029350
+derived_values:
+  entry_point: [-0.026070, 0.358000]
+  approach_start_point: [-0.149004, 0.492748]
+  arc_end_point: [0.040436, 0.328650]
+  approach_length: 0.182400
+  arc_radius: 0.090025
+  vertical_penetration: 0.029350
+  approach_proj_x: 0.000000
+  approach_proj_z: 0.134748
+meanings:
+  left_wall_offset: "入泥点到左侧壁的水平距离，单位 m"
+  mud_height: "泥面距盆底的高度，单位 m"
+  approach_len: "起始运动点到入泥点的斜线长度，单位 m"
+  theta_deg: "入泥角，负值表示向下切入，单位 deg"
+  depth: "入泥点相对泥面的实际垂直下扎深度，单位 m"
+  entry_point: "YOZ 截面内的入泥点 [Y, Z]"
+  approach_start_point: "YOZ 截面内的起始运动点 [Y, Z]"
+  arc_end_point: "圆弧转平结束点 [Y, Z]"
+  arc_radius: "根据入泥角和垂直入泥深度反算得到的圆弧半径，单位 m"
+  vertical_penetration: "圆弧终点相对泥面的实际垂直下扎深度，单位 m"
+  approach_proj_x: "当前二维/三维约定下世界 X 方向投影；二维逻辑未引入 X 位移，因此为 0"
+  approach_proj_z: "起始运动斜线在世界 Z 方向的投影，单位 m"

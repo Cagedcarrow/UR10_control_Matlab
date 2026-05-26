@@ -1,0 +1,34 @@
+metadata:
+  exported_at: "2026-05-26 10:06:43"
+  source_gui: "main_gui_3d"
+parameters:
+  left_wall_offset: 0.247000
+  mud_height: 0.108000
+  approach_len: 0.080000
+  theta_deg: -30.000000
+  depth: 0.050000
+  x_plane: -0.135000
+derived_values:
+  approach_start_point_xyz: [-0.135000, -0.069282, 0.398000]
+  entry_point_xyz: [-0.135000, 0.000000, 0.358000]
+  arc_end_point_xyz: [-0.135000, 0.186603, 0.308000]
+  approach_length: 0.080000
+  arc_radius: 0.373205
+  vertical_penetration: 0.050000
+  dist_x_negative_wall: 0.182000
+  dist_x_positive_wall: 0.182000
+meanings:
+  left_wall_offset: "入泥点到左侧壁的水平距离，单位 m"
+  mud_height: "泥面距盆底的高度，单位 m"
+  approach_len: "起始运动点到入泥点的斜线长度，单位 m"
+  theta_deg: "入泥角，负值表示向下切入，单位 deg"
+  depth: "入泥点相对泥面的实际垂直下扎深度，单位 m"
+  x_plane: "当前 YOZ 轨迹所在的世界 X 截面位置，单位 m"
+  approach_start_point_xyz: "三维空间中的起始运动点 [X, Y, Z]"
+  entry_point_xyz: "三维空间中的入泥点 [X, Y, Z]"
+  arc_end_point_xyz: "三维空间中的圆弧转平结束点 [X, Y, Z]"
+  approach_length: "当前起始运动斜线长度，单位 m"
+  arc_radius: "根据入泥角和垂直入泥深度反算得到的圆弧半径，单位 m"
+  vertical_penetration: "圆弧终点相对泥面的实际垂直下扎深度，单位 m"
+  dist_x_negative_wall: "轨迹平面到 X- 侧壁内表面的距离，单位 m"
+  dist_x_positive_wall: "轨迹平面到 X+ 侧壁内表面的距离，单位 m"

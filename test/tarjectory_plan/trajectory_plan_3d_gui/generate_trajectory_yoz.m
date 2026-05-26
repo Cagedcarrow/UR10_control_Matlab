@@ -2,12 +2,17 @@ function traj2d = generate_trajectory_yoz(params, envGeom)
 %GENERATE_TRAJECTORY_YOZ Build the scoop path directly in the YOZ plane.
 
 basin = envGeom.basin;
-approachLen = envGeom.motion.approachLen;
+approachLen = params.approachLen;
 
 yEntry = basin.innerYMin + params.leftWallOffset;
 zMud = basin.mudSurfaceZ;
 theta = deg2rad(params.thetaDeg);
-radius = params.depth;
+depthScale = 1 - cos(abs(theta));
+if depthScale < 1e-6
+    error('generate_trajectory_yoz:InvalidTheta', ...
+        '入泥角过小，无法根据垂直入泥深度反算圆弧半径。');
+end
+radius = params.depth / depthScale;
 
 dirEntry = [cos(theta), sin(theta)];
 pEntry = [yEntry, zMud];
@@ -48,9 +53,14 @@ traj2d.pEntry = pEntry;
 traj2d.pArcEnd = pArcEnd;
 traj2d.center = center;
 traj2d.radius = radius;
+traj2d.arcRadius = radius;
 traj2d.thetaDeg = params.thetaDeg;
 traj2d.depth = params.depth;
+traj2d.verticalPenetration = zMud - pArcEnd(2);
 traj2d.leftWallOffset = params.leftWallOffset;
 traj2d.mudSurfaceZ = zMud;
 traj2d.approachLen = approachLen;
+traj2d.approachProjHorizontal = approachLen * cos(theta);
+traj2d.approachProjZ = approachLen * abs(sin(theta));
+traj2d.approachProjX = 0.0;
 end
