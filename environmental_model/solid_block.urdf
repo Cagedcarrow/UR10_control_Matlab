@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<robot name="solid_block">
+  <!-- Solid rectangular block: 100×100×25 cm -->
+
+  <material name="block_gray">
+    <color rgba="0.6 0.6 0.6 0.8"/>
+  </material>
+
+  <link name="base_link">
+    <visual>
+      <geometry>
+        <box size="1.0 1.0 0.25"/>
+      </geometry>
+      <material name="block_gray"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="1.0 1.0 0.25"/>
+      </geometry>
+    </collision>
+  </link>
+
+</robot>

@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<robot name="rectangular_basin">
+  <!-- Rectangular basin: 37×50×18 cm, wall thickness 3mm -->
+  <!-- Origin at bottom center. X=length, Y=width, Z=height -->
+
+  <!-- Materials -->
+  <material name="basin_blue">
+    <color rgba="0.2 0.4 0.8 0.7"/>
+  </material>
+
+  <!-- Virtual base link (no geometry, no inertia) -->
+  <link name="base_link"/>
+
+  <!-- Bottom plate: 37×50×0.3 cm -->
+  <link name="bottom">
+    <visual>
+      <geometry>
+        <box size="0.37 0.50 0.003"/>
+      </geometry>
+      <material name="basin_blue"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.37 0.50 0.003"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="bottom_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="bottom"/>
+    <origin xyz="0 0 0.0015" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Front wall (Y+): 37×0.3×18 cm -->
+  <link name="front_wall">
+    <visual>
+      <geometry>
+        <box size="0.37 0.003 0.18"/>
+      </geometry>
+      <material name="basin_blue"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.37 0.003 0.18"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="front_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="front_wall"/>
+    <origin xyz="0 0.2485 0.09" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Back wall (Y-): 37×0.3×18 cm -->
+  <link name="back_wall">
+    <visual>
+      <geometry>
+        <box size="0.37 0.003 0.18"/>
+      </geometry>
+      <material name="basin_blue"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.37 0.003 0.18"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="back_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="back_wall"/>
+    <origin xyz="0 -0.2485 0.09" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Left wall (X-): 0.3×49.4×18 cm -->
+  <link name="left_wall">
+    <visual>
+      <geometry>
+        <box size="0.003 0.494 0.18"/>
+      </geometry>
+      <material name="basin_blue"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.003 0.494 0.18"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="left_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="left_wall"/>
+    <origin xyz="-0.1835 0 0.09" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Right wall (X+): 0.3×49.4×18 cm -->
+  <link name="right_wall">
+    <visual>
+      <geometry>
+        <box size="0.003 0.494 0.18"/>
+      </geometry>
+      <material name="basin_blue"/>
+    </visual>
+    <collision>
+      <geometry>
+        <box size="0.003 0.494 0.18"/>
+      </geometry>
+    </collision>
+  </link>
+  <joint name="right_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="right_wall"/>
+    <origin xyz="0.1835 0 0.09" rpy="0 0 0"/>
+  </joint>
+
+</robot>

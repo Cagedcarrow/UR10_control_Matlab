@@ -1,0 +1,19 @@
+metadata:
+  exported_at: "2026-05-26 12:37:12"
+  source_gui: "adjust_block_with_basin_pose_gui"
+  target_urdf: "/home/liuxiaopeng/公共的/MATLAB_ur10_control/UR10_control_Matlab/environmental_model/assembly_with_block_with_basin.urdf"
+target_joint: "base_jizuo_to_block_with_basin_frame"
+pose:
+  x: -1.830000
+  y: 0.000000
+  z: 0.000000
+  roll_deg: 0.000000
+  pitch_deg: 0.000000
+  yaw_deg: 180.000000
+meanings:
+  x: "block_with_basin 相对 base_jizuo 的 X 平移，单位 m"
+  y: "block_with_basin 相对 base_jizuo 的 Y 平移，单位 m"
+  z: "block_with_basin 相对 base_jizuo 的 Z 平移，单位 m"
+  roll_deg: "绕 X 轴旋转，单位 deg"
+  pitch_deg: "绕 Y 轴旋转，单位 deg"
+  yaw_deg: "绕 Z 轴旋转，单位 deg"
