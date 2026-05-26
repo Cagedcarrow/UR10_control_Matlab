@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>三维铲泥轨迹 GUI 总结文档</title>
+  <style>
+    :root {
+      --bg: #f5f1e8;
+      --paper: #fffdf8;
+      --ink: #1f2933;
+      --muted: #5c6773;
+      --line: #d9c8a9;
+      --accent: #b46a1f;
+      --accent-soft: #f2dfbf;
+      --code: #f4efe6;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Noto Sans SC", "Microsoft YaHei", sans-serif;
+      background: linear-gradient(180deg, #efe4cf 0%, var(--bg) 180px, #f8f5ef 100%);
+      color: var(--ink);
+      line-height: 1.7;
+    }
+
+    .page {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 32px 24px 56px;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, rgba(180,106,31,0.16), rgba(255,253,248,0.92));
+      border: 1px solid rgba(180,106,31,0.18);
+      border-radius: 20px;
+      padding: 28px 28px 22px;
+      box-shadow: 0 14px 28px rgba(79, 59, 33, 0.08);
+    }
+
+    h1, h2, h3 {
+      margin: 0 0 14px;
+      line-height: 1.3;
+    }
+
+    h1 {
+      font-size: 34px;
+      letter-spacing: 0.02em;
+    }
+
+    h2 {
+      margin-top: 34px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid var(--line);
+      font-size: 26px;
+    }
+
+    h3 {
+      margin-top: 22px;
+      font-size: 20px;
+      color: #6a4213;
+    }
+
+    p {
+      margin: 0 0 14px;
+    }
+
+    .lead {
+      font-size: 17px;
+      color: var(--muted);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+      margin-top: 18px;
+    }
+
+    .card {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 18px 18px 14px;
+      box-shadow: 0 10px 24px rgba(95, 73, 36, 0.05);
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 4px 10px;
+      margin: 0 8px 8px 0;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: #734511;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    code, pre {
+      font-family: "Consolas", "Courier New", monospace;
+    }
+
+    code {
+      padding: 2px 6px;
+      background: var(--code);
+      border-radius: 6px;
+      font-size: 0.95em;
+    }
+
+    pre {
+      margin: 14px 0;
+      padding: 16px;
+      background: var(--code);
+      border: 1px solid #e2d5c1;
+      border-radius: 14px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+    }
+
+    ul, ol {
+      margin: 8px 0 14px 22px;
+    }
+
+    li {
+      margin-bottom: 8px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0 10px;
+      background: var(--paper);
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 10px 24px rgba(95, 73, 36, 0.05);
+    }
+
+    th, td {
+      border: 1px solid #e8dcc9;
+      padding: 12px 14px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #f0e2c7;
+      color: #603b10;
+    }
+
+    .note {
+      padding: 14px 16px;
+      border-left: 4px solid var(--accent);
+      background: #fcf6ea;
+      border-radius: 0 12px 12px 0;
+      margin: 14px 0;
+    }
+
+    .small {
+      font-size: 14px;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <section class="hero">
+      <h1>三维铲泥轨迹 GUI 总结文档</h1>
+      <p class="lead">
+        本文档总结 <code>UR10_control_Matlab/test/tarjectory_plan/trajectory_plan_3d_gui</code>
+        目录下 3D GUI 的构建方式、轨迹几何逻辑、参数定义、YAML 初值机制，以及 2D/3D 轨迹共享关系。
+      </p>
+      <div>
+        <span class="tag">YOZ 截面轨迹</span>
+        <span class="tag">3D 可视化</span>
+        <span class="tag">URDF 环境加载</span>
+        <span class="tag">YAML 初值与保存</span>
+      </div>
+    </section>
+
+    <h2>1. 功能概览</h2>
+    <p>
+      该 3D GUI 的目标，是在真实环境模型 <code>block_with_basin.urdf</code> 中观察铲泥轨迹，
+      并通过参数滑条快速调整轨迹的空间位置与轨迹形状。它不是机械臂逆解或控制器，而是一个
+      面向轨迹设计与核对的三维可视化工具。
+    </p>
+    <div class="grid">
+      <div class="card">
+        <h3>核心思路</h3>
+        <p>
+          先在 <strong>YOZ 平面</strong> 上生成一条二维铲泥轨迹，再把这条二维轨迹整体抬升到
+          三维空间中的某一个固定 <code>X = xPlane</code> 截面内。
+        </p>
+      </div>
+      <div class="card">
+        <h3>共享几何层</h3>
+        <p>
+          二维 GUI 与三维 GUI 共用同一个核心轨迹生成器 <code>generate_trajectory_yoz.m</code>，
+          从而保证 2D 和 3D 的轨迹形状严格一致。
+        </p>
+      </div>
+      <div class="card">
+        <h3>三维专属能力</h3>
+        <p>
+          三维 GUI 额外提供 <code>xPlane</code> 截面位置控制、X 向两侧壁距离显示、环境 URDF 加载、
+          三维视角切换、姿态箭头和世界坐标系显示。
+        </p>
+      </div>
+    </div>
+
+    <h2>2. 文件构成与职责</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>文件</th>
+          <th>作用</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>main_gui_3d.m</code></td>
+          <td>3D GUI 入口。负责窗口布局、滑条、按钮、YAML 读写入口、回调绑定、刷新驱动。</td>
+        </tr>
+        <tr>
+          <td><code>build_gui_state.m</code></td>
+          <td>构建默认状态、环境几何参数、盆体内腔范围、YAML 初值加载与参数限幅。</td>
+        </tr>
+        <tr>
+          <td><code>generate_trajectory_yoz.m</code></td>
+          <td>原生二维轨迹生成器。直接在 YOZ 截面中构造“预运动 + 泥下圆弧 + 竖直提升”轨迹。</td>
+        </tr>
+        <tr>
+          <td><code>generate_trajectory_3d.m</code></td>
+          <td>将二维 YOZ 轨迹抬升到固定 <code>X</code> 平面，形成三维轨迹。</td>
+        </tr>
+        <tr>
+          <td><code>render_scene.m</code></td>
+          <td>统一负责 3D 场景渲染：URDF 环境、轨迹点线、关键点、泥面、截面辅助面、坐标系、箭头。</td>
+        </tr>
+        <tr>
+          <td><code>trajectory_params_3d.yaml</code></td>
+          <td>3D GUI 的启动初值文件，同时也是“导出参数”和“保存当前为初始值”的落盘目标。</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>3. GUI 构建流程</h2>
+    <ol>
+      <li>调用 <code>build_gui_state('trajectory_params_3d.yaml')</code> 构建状态。</li>
+      <li>如果同目录存在 <code>trajectory_params_3d.yaml</code>，则读取其中 <code>parameters</code> 段作为初始值。</li>
+      <li>加载环境模型 <code>environmental_model/block_with_basin.urdf</code>。</li>
+      <li>创建左侧参数区与右侧三维场景区。</li>
+      <li>绑定参数滑条、视角下拉框、显示开关、导出按钮、保存初值按钮。</li>
+      <li>根据当前参数调用 <code>generate_trajectory_3d</code> 生成轨迹，再调用 <code>render_scene</code> 渲染。</li>
+    </ol>
+
+    <div class="note">
+      当前 3D GUI 在启动时不是固定读代码默认值，而是优先读 <code>trajectory_params_3d.yaml</code>。
+      因此只要在 GUI 里点击“保存当前为初始值”，下次打开窗口时就会自动从该 YAML 恢复这组参数。
+    </div>
+
+    <h2>4. 盆体与坐标定义</h2>
+    <p>盆体几何在 <code>build_gui_state.m</code> 中定义，关键量如下：</p>
+    <ul>
+      <li><code>basin.worldOrigin = [-0.135, 0.0, 0.25]</code>：盆体内腔参考原点。</li>
+      <li><code>outerLengthX = 0.37 m</code>：盆体外部长。</li>
+      <li><code>outerWidthY = 0.50 m</code>：盆体外部宽。</li>
+      <li><code>outerHeightZ = 0.18 m</code>：盆体高度。</li>
+      <li><code>wallThickness = 0.003 m</code>：壁厚。</li>
+      <li>由此推导出内腔尺寸、底面高度 <code>floorZ</code>、盆沿高度 <code>rimZ</code>、以及 <code>xPlane</code> 允许范围。</li>
+    </ul>
+
+    <p>该 GUI 使用的空间理解是：</p>
+    <ul>
+      <li><strong>X 方向</strong>：盆体长度方向，也是选择不同 YOZ 截面的方向。</li>
+      <li><strong>Y 方向</strong>：YOZ 截面中的横向方向，用于控制入泥点距左侧壁距离。</li>
+      <li><strong>Z 方向</strong>：竖直方向，盆底到盆沿，以及泥面高度都定义在这个方向。</li>
+    </ul>
+
+    <h2>5. 轨迹分段逻辑</h2>
+    <p>轨迹由 3 段构成，全部先在 YOZ 平面内生成：</p>
+    <ol>
+      <li><strong>预运动段 seg0</strong>：从桶外斜上方的起始运动点直线移动到入泥点。</li>
+      <li><strong>圆弧装载段 seg1</strong>：从入泥点开始，在泥面以下沿圆弧旋转，直到末端方向与泥面平行。</li>
+      <li><strong>竖直提升段 seg2</strong>：圆弧结束后，沿全局 <code>+Z</code> 方向直接提升。</li>
+    </ol>
+
+    <h3>5.1 入泥点</h3>
+    <p>
+      入泥点始终位于泥面上，因此其二维坐标不是自由设定的两个量，而是：
+    </p>
+<pre>yEntry = basin.innerYMin + leftWallOffset
+zMud   = basin.floorZ + mudHeight
+pEntry = [yEntry, zMud]</pre>
+
+    <p>
+      这里 <code>leftWallOffset</code> 控制入泥点在 Y 方向的位置，<code>mudHeight</code> 控制泥面高度。
+    </p>
+
+    <h3>5.2 预运动起始点</h3>
+    <p>
+      起始运动点不是单独输入，而是由入泥点、入泥角、斜线长度自动反推：
+    </p>
+<pre>theta    = deg2rad(thetaDeg)
+dirEntry = [cos(theta), sin(theta)]
+pApproachStart = pEntry - approachLen * dirEntry</pre>
+
+    <p>
+      这里 <code>approachLen</code> 表示从起始运动点到入泥点的直线长度。由于 <code>thetaDeg</code> 为负，
+      所以这条线会从入泥点往左上方回推，形成桶外斜上方的起始运动点。
+    </p>
+
+    <h3>5.3 圆弧段的核心定义</h3>
+    <p>圆弧段的几何目标是：</p>
+    <ul>
+      <li>从入泥角 <code>thetaDeg</code> 开始。</li>
+      <li>圆弧结束时，轨迹方向与泥面平行。</li>
+      <li>参数 <code>depth</code> 表示的是<strong>相对泥面的实际垂直下扎深度</strong>，不是圆弧半径。</li>
+    </ul>
+
+    <p>因此代码中首先反算圆弧半径：</p>
+<pre>depthScale = 1 - cos(abs(theta))
+radius     = depth / depthScale</pre>
+
+    <p>
+      这个公式来自圆弧终点相对泥面的竖向下降量。对于当前几何定义，圆弧结束点相对泥面的下沉量是：
+    </p>
+<pre>verticalPenetration = radius * (1 - cos(abs(theta)))</pre>
+
+    <p>令这个量等于用户输入的 <code>depth</code>，即可得到上面的反算半径公式。</p>
+
+    <p>圆弧的起始角与结束角定义为：</p>
+<pre>a1 = theta - pi / 2
+a2 = -pi / 2</pre>
+
+    <p>对应圆心坐标为：</p>
+<pre>center = pEntry - radius * [cos(a1), sin(a1)]</pre>
+
+    <p>圆弧上的点按参数角 <code>a</code> 插值得到：</p>
+<pre>seg1(a) = [
+    center(1) + radius * cos(a),
+    center(2) + radius * sin(a)
+]</pre>
+
+    <p>其中 <code>a</code> 从 <code>a1</code> 连续变化到 <code>a2</code>。圆弧终点即为：</p>
+<pre>pArcEnd = seg1(end, :)</pre>
+
+    <div class="note">
+      这也是为什么当前 GUI 中如果 <code>theta</code> 绝对值很小、但 <code>depth</code> 设得很大，反算出来的圆弧半径会非常大。
+      这是几何关系导致的，而不是比例错误。
+    </div>
+
+    <h3>5.4 竖直提升段</h3>
+    <p>
+      圆弧结束后，不再沿切线方向抬起，而是直接沿世界坐标 <code>+Z</code> 方向竖直提升。代码采用：
+    </p>
+<pre>liftLen = min(basin.zMotionMax - pArcEnd(2), max(0.06, 1.20 * radius))
+seg2 = [repmat(pArcEnd(1), nLift, 1), zLift]</pre>
+
+    <p>
+      这里提升长度既受盆体上边界限制，也保留了一个与圆弧半径相关的默认提升长度策略。
+    </p>
+
+    <h2>6. 二维到三维的映射</h2>
+    <p>
+      轨迹先在 YOZ 平面中生成，再由 <code>generate_trajectory_3d.m</code> 抬升到三维空间。映射公式非常直接：
+    </p>
+<pre>[Y, Z] in YOZ plane  --lift-->  [X, Y, Z] in world
+
+X = xPlane
+Y = original 2D Y
+Z = original 2D Z</pre>
+
+    <p>具体实现为：</p>
+<pre>pts3 = [repmat(xPlane, size(pts2, 1), 1), pts2(:, 1), pts2(:, 2)]</pre>
+
+    <p>因此：</p>
+    <ul>
+      <li>修改 <code>xPlane</code> 只会让轨迹在 X 方向平移。</li>
+      <li>不会改变 YOZ 截面内的轨迹形状。</li>
+      <li>二维 GUI 里看到的轨迹，就是三维 GUI 某个固定截面的真实截面轨迹。</li>
+    </ul>
+
+    <h2>7. 参数含义</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>参数</th>
+          <th>变量名</th>
+          <th>含义</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>距左侧壁距离</td>
+          <td><code>leftWallOffset</code></td>
+          <td>入泥点到盆内左侧壁的水平距离，决定入泥点在 Y 方向的位置。</td>
+        </tr>
+        <tr>
+          <td>泥面高度</td>
+          <td><code>mudHeight</code></td>
+          <td>泥面相对盆底的高度，决定入泥点和泥面的 Z 位置。</td>
+        </tr>
+        <tr>
+          <td>起始运动斜线长度</td>
+          <td><code>approachLen</code></td>
+          <td>从起始运动点到入泥点的直线长度，用于控制桶外预运动段长度。</td>
+        </tr>
+        <tr>
+          <td>入泥角度</td>
+          <td><code>thetaDeg</code></td>
+          <td>预运动段与圆弧起始切向的角度，负值表示向下切入。</td>
+        </tr>
+        <tr>
+          <td>入泥深度</td>
+          <td><code>depth</code></td>
+          <td>圆弧终点相对泥面的实际垂直下扎深度，不是圆弧半径。</td>
+        </tr>
+        <tr>
+          <td>轨迹平面 X 位置</td>
+          <td><code>xPlane</code></td>
+          <td>三维轨迹所在的固定 YOZ 截面位置。</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>8. GUI 交互说明</h2>
+    <ul>
+      <li><strong>滑条</strong>：用于实时调整 6 个核心参数。</li>
+      <li><strong>距 X-/X+ 侧壁距离</strong>：只读显示，用于观察当前 <code>xPlane</code> 离两侧壁的距离。</li>
+      <li><strong>视角下拉框</strong>：可切换 <code>Isometric / Top / Front / Side</code>。</li>
+      <li><strong>显示世界坐标系</strong>：控制 X/Y/Z 坐标箭头显示。</li>
+      <li><strong>显示姿态箭头</strong>：控制沿轨迹切向方向的箭头显示。</li>
+      <li><strong>导出参数为 YAML</strong>：将当前参数和推导值导出到 <code>trajectory_params_3d.yaml</code>。</li>
+      <li><strong>保存当前为初始值</strong>：将当前参数覆盖写入 <code>trajectory_params_3d.yaml</code>，下次启动自动加载。</li>
+    </ul>
+
+    <h2>9. YAML 初值与保存机制</h2>
+    <p>
+      3D GUI 启动时，会在 <code>build_gui_state.m</code> 中读取同目录的 <code>trajectory_params_3d.yaml</code>。
+      当前只读取其中 <code>parameters</code> 段里的以下字段：
+    </p>
+<pre>left_wall_offset
+mud_height
+approach_len
+theta_deg
+depth
+x_plane</pre>
+
+    <p>
+      如果 YAML 中的参数超出 GUI 允许范围，代码会先进行限幅，然后再作为 GUI 初值使用。
+      对应的限幅范围目前写在 <code>build_gui_state.m</code> 的 <code>clampParamsToGuiLimits</code> 中。
+    </p>
+
+    <p>当前 3D YAML 文件里除了 <code>parameters</code>，还会导出以下推导量：</p>
+    <ul>
+      <li><code>approach_start_point_xyz</code></li>
+      <li><code>entry_point_xyz</code></li>
+      <li><code>arc_end_point_xyz</code></li>
+      <li><code>approach_length</code></li>
+      <li><code>arc_radius</code></li>
+      <li><code>vertical_penetration</code></li>
+      <li><code>dist_x_negative_wall</code></li>
+      <li><code>dist_x_positive_wall</code></li>
+    </ul>
+
+    <h2>10. 渲染策略</h2>
+    <p>
+      场景渲染在 <code>render_scene.m</code> 中统一完成。为了减少 MATLAB UIAxes/axes 频繁重绘带来的问题，
+      当前采用的是稳定优先策略：
+    </p>
+    <ul>
+      <li>每次刷新先 <code>cla(ax)</code>。</li>
+      <li>用 <code>show(..., 'PreservePlot', false, 'FastUpdate', true)</code> 绘制环境模型。</li>
+      <li>再叠加轨迹、关键点、泥面辅助面、截面辅助面、姿态箭头与世界坐标系。</li>
+      <li>相机状态在 GUI 层单独保存并恢复，从而避免拖动滑条时重置视角。</li>
+    </ul>
+
+    <h2>11. 典型使用流程</h2>
+    <ol>
+      <li>运行 <code>main_gui_3d</code>。</li>
+      <li>GUI 自动从 <code>trajectory_params_3d.yaml</code> 读入上次保存的参数。</li>
+      <li>通过滑条调整入泥点位置、泥面高度、预运动长度、入泥角、垂直入泥深度以及截面位置。</li>
+      <li>在三维视图中确认轨迹是否位于盆体内部、是否在泥面以下完成圆弧转平。</li>
+      <li>如果需要对外共享当前配置，点击“导出参数为 YAML”。</li>
+      <li>如果需要把当前配置作为下次启动默认值，点击“保存当前为初始值”。</li>
+    </ol>
+
+    <h2>12. 当前实现特点与注意事项</h2>
+    <ul>
+      <li>当前 3D GUI 的轨迹几何与 2D GUI 共用一套核心逻辑，因此二维核对与三维显示是一致的。</li>
+      <li><code>depth</code> 的定义已经明确为垂直入泥深度，不能再按“圆弧半径”理解。</li>
+      <li>如果 <code>theta</code> 太接近 0 度而 <code>depth</code> 又较大，圆弧半径会很大，这是几何必然结果。</li>
+      <li>当前文档描述的是轨迹生成与可视化逻辑，不包含机械臂逆运动学、关节规划、碰撞求解或控制发送。</li>
+    </ul>
+
+    <p class="small">
+      文档位置：<code>trajectory_plan_3d_gui/trajectory_plan_3d_gui_summary.html</code>
+    </p>
+  </div>
+</body>
+</html>
