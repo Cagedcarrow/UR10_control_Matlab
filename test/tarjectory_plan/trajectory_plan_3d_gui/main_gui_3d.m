@@ -1,7 +1,7 @@
 function main_gui_3d
 %MAIN_GUI_3D 3D GUI for viewing the scoop trajectory inside the basin.
 
-state = build_gui_state();
+state = build_gui_state('trajectory_params_3d.yaml');
 
 state.robot = load_environment_model(state.paths.environmentUrdf);
 
@@ -12,9 +12,9 @@ mainGrid = uigridlayout(fig, [1 2], ...
     'ColumnSpacing', 10);
 
 controlPanel = uipanel(mainGrid, 'Title', '参数与视图');
-controlGrid = uigridlayout(controlPanel, [26 1], ...
+controlGrid = uigridlayout(controlPanel, [27 1], ...
     'RowHeight', {22, 30, 20, 22, 30, 20, 22, 30, 20, 22, 30, 20, ...
-                  22, 30, 20, 22, 30, 20, 22, 22, 28, 28, 30, '1x', 22, 22}, ...
+                  22, 30, 20, 22, 30, 20, 22, 22, 28, 28, 30, 30, '1x', 22, 22}, ...
     'Padding', [10 10 10 10], ...
     'RowSpacing', 6);
 
@@ -52,6 +52,10 @@ state.ui.btnExport = uibutton(controlGrid, 'push', ...
     'Text', '导出参数为 YAML', ...
     'ButtonPushedFcn', @(src, evt) exportYaml(fig));
 
+state.ui.btnSaveDefaults = uibutton(controlGrid, 'push', ...
+    'Text', '保存当前为初始值', ...
+    'ButtonPushedFcn', @(src, evt) saveCurrentAsDefaults(fig));
+
 state.ui.lblInfo = uilabel(controlGrid, ...
     'Text', sprintf(['轨迹说明:\n' ...
                      '轨迹位于固定 X 的 YOZ 平面内。\n' ...
@@ -59,11 +63,12 @@ state.ui.lblInfo = uilabel(controlGrid, ...
                      '起始运动点由斜线长度和入泥角反推。\n' ...
                      '入泥深度 d 表示相对泥面的垂直下扎深度。\n' ...
                      '随后泥下圆弧转平，再沿 Z 轴竖直抬升。\n' ...
+                     '启动时会读取 trajectory_params_3d.yaml 作为初值。\n' ...
                      '淡黄色面表示泥面，黄色半透明面表示当前 YOZ 截面。']), ...
     'FontSize', 11, ...
     'HorizontalAlignment', 'left', ...
     'VerticalAlignment', 'top');
-state.ui.lblInfo.Layout.Row = [24 26];
+state.ui.lblInfo.Layout.Row = [25 27];
 
 fig.UserData = state;
 
@@ -184,19 +189,42 @@ end
 
 function exportYaml(fig)
 state = fig.UserData;
-yamlPath = fullfile(fileparts(mfilename('fullpath')), 'trajectory_params_3d.yaml');
+yamlPath = resolveInitialYamlPath(state);
 yamlText = buildYamlText(state);
 
+writeYamlFile(fig, yamlPath, yamlText, '导出失败');
+
+uialert(fig, sprintf('参数已导出到:\n%s', yamlPath), '导出完成', 'Icon', 'success');
+end
+
+function saveCurrentAsDefaults(fig)
+state = fig.UserData;
+yamlPath = resolveInitialYamlPath(state);
+yamlText = buildYamlText(state);
+
+writeYamlFile(fig, yamlPath, yamlText, '保存失败');
+
+uialert(fig, sprintf('当前参数已保存为初始值:\n%s\n下次打开 3D GUI 时会自动加载。', yamlPath), ...
+    '保存完成', 'Icon', 'success');
+end
+
+function yamlPath = resolveInitialYamlPath(state)
+if isfield(state.paths, 'initialParamsYaml') && ~isempty(state.paths.initialParamsYaml)
+    yamlPath = state.paths.initialParamsYaml;
+else
+    yamlPath = fullfile(fileparts(mfilename('fullpath')), 'trajectory_params_3d.yaml');
+end
+end
+
+function writeYamlFile(fig, yamlPath, yamlText, failTitle)
 fid = fopen(yamlPath, 'w', 'n', 'UTF-8');
 if fid < 0
-    uialert(fig, sprintf('无法写入 YAML 文件:\n%s', yamlPath), '导出失败');
-    return;
+    uialert(fig, sprintf('无法写入 YAML 文件:\n%s', yamlPath), failTitle);
+    error('main_gui_3d:YamlWriteFailed', 'Unable to write YAML file: %s', yamlPath);
 end
 cleanupObj = onCleanup(@() fclose(fid));
 fwrite(fid, yamlText, 'char');
 clear cleanupObj;
-
-uialert(fig, sprintf('参数已导出到:\n%s', yamlPath), '导出完成', 'Icon', 'success');
 end
 
 function yamlText = buildYamlText(state)

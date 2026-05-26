@@ -1,5 +1,9 @@
-function state = build_gui_state()
+function state = build_gui_state(initialYamlName)
 %BUILD_GUI_STATE Create defaults and environment geometry for the 3D GUI.
+
+if nargin < 1
+    initialYamlName = '';
+end
 
 thisDir = fileparts(mfilename('fullpath'));
 trajectoryPlanDir = fileparts(thisDir);
@@ -50,8 +54,77 @@ state.params = struct( ...
     'depth', 0.05, ...
     'xPlane', basin.worldOrigin(1));
 
+if ~isempty(initialYamlName)
+    state.paths.initialParamsYaml = fullfile(thisDir, initialYamlName);
+    if exist(state.paths.initialParamsYaml, 'file')
+        state.params = applyInitialParamsFromYaml(state.params, state.paths.initialParamsYaml);
+    end
+else
+    state.paths.initialParamsYaml = '';
+end
+
+state.params = clampParamsToGuiLimits(state.params, basin);
+
 state.robot = [];
 state.ui = struct();
 state.ui.cameraState = struct('mode', 'preset', 'value', [135, 20]);
 state.traj = [];
+end
+
+function params = applyInitialParamsFromYaml(params, yamlPath)
+yamlText = fileread(yamlPath);
+yamlLines = splitlines(string(yamlText));
+
+keyMap = struct( ...
+    'left_wall_offset', 'leftWallOffset', ...
+    'mud_height', 'mudHeight', ...
+    'approach_len', 'approachLen', ...
+    'theta_deg', 'thetaDeg', ...
+    'depth', 'depth', ...
+    'x_plane', 'xPlane');
+
+inParameters = false;
+for i = 1:numel(yamlLines)
+    line = yamlLines(i);
+    trimmed = strtrim(line);
+    if trimmed == ""
+        continue;
+    end
+
+    if strcmp(trimmed, "parameters:")
+        inParameters = true;
+        continue;
+    end
+
+    if inParameters && ~startsWith(line, "  ")
+        break;
+    end
+
+    if ~inParameters
+        continue;
+    end
+
+    tokens = regexp(trimmed, '^([a-z_]+):\s*([-+]?\d*\.?\d+(?:[eE][-+]?\d+)?)$', 'tokens', 'once');
+    if isempty(tokens)
+        continue;
+    end
+
+    yamlKey = char(tokens{1});
+    if isfield(keyMap, yamlKey)
+        params.(keyMap.(yamlKey)) = str2double(tokens{2});
+    end
+end
+end
+
+function params = clampParamsToGuiLimits(params, basin)
+params.leftWallOffset = clampValue(params.leftWallOffset, [basin.ySafetyMargin, basin.innerWidthY - basin.ySafetyMargin]);
+params.mudHeight = clampValue(params.mudHeight, [0.00, basin.innerHeightZ]);
+params.approachLen = clampValue(params.approachLen, [0.00, 0.30]);
+params.thetaDeg = clampValue(params.thetaDeg, [-60.0, -5.0]);
+params.depth = clampValue(params.depth, [0.01, 0.10]);
+params.xPlane = clampValue(params.xPlane, [basin.xPlaneMin, basin.xPlaneMax]);
+end
+
+function value = clampValue(value, limits)
+value = min(max(value, limits(1)), limits(2));
 end

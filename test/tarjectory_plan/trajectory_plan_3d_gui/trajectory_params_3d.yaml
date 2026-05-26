@@ -1,20 +1,20 @@
 metadata:
-  exported_at: "2026-05-26 10:06:43"
+  exported_at: "2026-05-26 10:17:57"
   source_gui: "main_gui_3d"
 parameters:
-  left_wall_offset: 0.247000
+  left_wall_offset: 0.176374
   mud_height: 0.108000
-  approach_len: 0.080000
+  approach_len: 0.234900
   theta_deg: -30.000000
-  depth: 0.050000
+  depth: 0.052120
   x_plane: -0.135000
 derived_values:
-  approach_start_point_xyz: [-0.135000, -0.069282, 0.398000]
-  entry_point_xyz: [-0.135000, 0.000000, 0.358000]
-  arc_end_point_xyz: [-0.135000, 0.186603, 0.308000]
-  approach_length: 0.080000
-  arc_radius: 0.373205
-  vertical_penetration: 0.050000
+  approach_start_point_xyz: [-0.135000, -0.274055, 0.475450]
+  entry_point_xyz: [-0.135000, -0.070626, 0.358000]
+  arc_end_point_xyz: [-0.135000, 0.123888, 0.305880]
+  approach_length: 0.234900
+  arc_radius: 0.389029
+  vertical_penetration: 0.052120
   dist_x_negative_wall: 0.182000
   dist_x_positive_wall: 0.182000
 meanings:
