@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>逆运动学 — UR10 技术文档</title>
+  <style>
+:root {
+  --bg-primary: #0d1117; --bg-secondary: #161b22; --bg-card: #1c2333;
+  --bg-code: #0d1117; --text-primary: #e6edf3; --text-secondary: #8b949e;
+  --text-muted: #6e7681; --accent: #58a6ff; --accent-green: #3fb950;
+  --accent-orange: #d29922; --accent-purple: #a371f7; --accent-red: #f85149;
+  --border: #30363d; --shadow: 0 2px 8px rgba(0,0,0,0.4); --radius: 8px;
+  --sidebar-width: 260px; --toc-width: 220px;
+  --font-mono: 'JetBrains Mono','Fira Code','Cascadia Code','Consolas',monospace;
+  --font-sans: -apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans SC',sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; font-size: 15px; }
+body { font-family: var(--font-sans); background: var(--bg-primary); color: var(--text-primary); line-height: 1.7; min-height: 100vh; }
+.sidebar { position: fixed; top: 0; left: 0; width: var(--sidebar-width); height: 100vh; background: var(--bg-secondary); border-right: 1px solid var(--border); overflow-y: auto; z-index: 100; transition: transform 0.3s ease; padding-bottom: 2rem; }
+.sidebar-header { padding: 1.5rem 1.2rem 1rem; border-bottom: 1px solid var(--border); margin-bottom: 0.5rem; }
+.sidebar-header h2 { font-size: 1.15rem; color: var(--accent); letter-spacing: 0.5px; }
+.sidebar-header .subtitle { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem; }
+.nav-list { list-style: none; padding: 0 0.5rem; }
+.nav-list li { margin: 0; }
+.nav-list li a { display: block; padding: 0.45rem 0.8rem; color: var(--text-secondary); text-decoration: none; border-radius: 6px; font-size: 0.88rem; transition: background 0.15s, color 0.15s; }
+.nav-list li a:hover { background: rgba(88,166,255,0.08); color: var(--text-primary); }
+.nav-list li.active a, .nav-list li.active a:hover { background: rgba(88,166,255,0.15); color: var(--accent); font-weight: 600; }
+.nav-section { padding: 0.6rem 0.8rem 0.2rem; font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); letter-spacing: 1px; font-weight: 700; }
+.content { margin-left: var(--sidebar-width); padding: 2rem 3rem; max-width: calc(100% - var(--sidebar-width) - var(--toc-width)); min-height: 100vh; }
+.main-content { max-width: 900px; }
+.sidebar-toggle { display: none; position: fixed; top: 1rem; left: 1rem; z-index: 200; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem 0.7rem; cursor: pointer; font-size: 1.2rem; }
+.toc { position: fixed; right: 1.5rem; top: 2rem; width: var(--toc-width); max-height: calc(100vh - 4rem); overflow-y: auto; font-size: 0.8rem; border-left: 1px solid var(--border); padding-left: 1rem; }
+.toc h4 { color: var(--text-secondary); margin-bottom: 0.5rem; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.5px; }
+.toc a { display: block; color: var(--text-muted); text-decoration: none; padding: 0.15rem 0; transition: color 0.15s; }
+.toc a:hover, .toc a.visible { color: var(--accent); }
+.toc a.toc-h3 { padding-left: 0.75rem; font-size: 0.78rem; }
+h1 { font-size: 2rem; margin-bottom: 0.5rem; color: var(--text-primary); border-bottom: 2px solid var(--border); padding-bottom: 0.5rem; }
+h2 { font-size: 1.5rem; margin: 2.5rem 0 1rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+h3 { font-size: 1.2rem; margin: 1.8rem 0 0.8rem; color: var(--text-primary); }
+h4 { font-size: 1rem; margin: 1.2rem 0 0.5rem; color: var(--text-secondary); }
+p { margin: 0.8rem 0; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+strong { color: var(--text-primary); }
+ul, ol { margin: 0.5rem 0 0.5rem 1.5rem; }
+li { margin: 0.25rem 0; }
+code { font-family: var(--font-mono); font-size: 0.88em; background: var(--bg-code); padding: 0.15em 0.4em; border-radius: 4px; border: 1px solid var(--border); }
+pre { background: var(--bg-code); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.2rem; overflow-x: auto; margin: 1rem 0; font-size: 0.82rem; line-height: 1.55; }
+pre code { background: none; border: none; padding: 0; font-size: inherit; }
+table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.88rem; }
+thead { background: var(--bg-card); }
+th { text-align: left; padding: 0.6rem 0.8rem; font-weight: 600; color: var(--accent); border-bottom: 2px solid var(--border); position: sticky; top: 0; }
+td { padding: 0.5rem 0.8rem; border-bottom: 1px solid var(--border); }
+tr:hover td { background: rgba(88,166,255,0.04); }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.2rem; margin: 1.5rem 0; }
+.card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; transition: border-color 0.2s, transform 0.15s; text-decoration: none; color: var(--text-primary); display: block; }
+.card:hover { border-color: var(--accent); transform: translateY(-2px); text-decoration: none; }
+.card h3 { color: var(--accent); margin: 0 0 0.5rem; font-size: 1.1rem; }
+.card p { color: var(--text-secondary); font-size: 0.88rem; margin: 0; }
+.card .io { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.5rem; font-family: var(--font-mono); }
+.notice { border-left: 4px solid var(--accent); background: rgba(88,166,255,0.06); padding: 0.8rem 1rem; margin: 1rem 0; border-radius: 0 var(--radius) var(--radius) 0; font-size: 0.9rem; }
+.notice.warn { border-color: var(--accent-orange); background: rgba(210,153,34,0.06); }
+.notice.info { border-color: var(--accent-green); background: rgba(63,185,80,0.06); }
+.mermaid { text-align: center; margin: 1.5rem 0; overflow-x: auto; background: transparent; }
+.mermaid svg { max-width: 100%; height: auto; }
+mjx-container { overflow-x: auto; }
+.page-footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--border); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
+.page-footer a { color: var(--accent); text-decoration: none; font-size: 0.9rem; padding: 0.4rem 0; }
+.page-footer a:hover { text-decoration: underline; }
+.tag { display: inline-block; padding: 0.15rem 0.5rem; background: rgba(88,166,255,0.12); color: var(--accent); border-radius: 12px; font-size: 0.75rem; margin: 0.1rem; }
+.tag.green { background: rgba(63,185,80,0.12); color: var(--accent-green); }
+.tag.orange { background: rgba(210,153,34,0.12); color: var(--accent-orange); }
+.tag.purple { background: rgba(163,113,247,0.12); color: var(--accent-purple); }
+.hero { text-align: center; padding: 2rem 0 1.5rem; }
+.hero h1 { font-size: 2.4rem; border: none; margin-bottom: 0.5rem; }
+.hero .subtitle { color: var(--text-secondary); font-size: 1.05rem; max-width: 600px; margin: 0 auto; }
+@media (max-width: 1200px) { .toc { display: none; } .content { max-width: calc(100% - var(--sidebar-width)); } }
+@media (max-width: 768px) { :root { font-size: 14px; } .sidebar { transform: translateX(-100%); } .sidebar.open { transform: translateX(0); } .sidebar-toggle { display: block; } .content { margin-left: 0; max-width: 100%; padding: 1.2rem; } .card-grid { grid-template-columns: 1fr; } .page-footer { flex-direction: column; } }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>mermaid.initialize({startOnLoad:true, theme:'dark', themeVariables:{primaryColor:'#1c2333',primaryTextColor:'#e6edf3',primaryBorderColor:'#30363d',lineColor:'#58a6ff',secondaryColor:'#161b22',tertiaryColor:'#0d1117'}});</script>
+  <script>MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']]},svg:{fontCache:'global'}};</script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script>document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});</script>
+</head>
+<body>
+
+<nav id="sidebar" class="sidebar">
+  <div class="sidebar-header">
+    <h2>UR10 技术文档</h2>
+    <div class="subtitle">机械臂运动学与动力学</div>
+  </div>
+  <ul class="nav-list">
+    <li><a href="../README.html">项目概览</a></li>
+    <li class="nav-section">运动学</li>
+    <li><a href="../%E6%AD%A3%E8%BF%90%E5%8A%A8%E5%AD%A6/index.html">正运动学</a></li>
+    <li class="active"><a href="index.html">逆运动学</a></li>
+    <li class="nav-section">动力学</li>
+    <li><a href="../%E9%80%86%E5%8A%A8%E5%8A%9B%E5%AD%A6/index.html">逆动力学</a></li>
+    <li class="nav-section">辨识</li>
+    <li><a href="../%E7%94%B5%E6%B5%81%E6%A8%A1%E5%9E%8B%E8%BE%A8%E8%AF%86/index.html">电流模型辨识</a></li>
+  </ul>
+</nav>
+
+<main id="content" class="content">
+  <button id="sidebarToggle" class="sidebar-toggle">☰</button>
+  <div id="toc" class="toc"></div>
+  <div class="main-content">
+
+<h1>逆运动学 (Inverse Kinematics)</h1>
+
+<div class="hero">
+  <p class="subtitle">给定末端 TCP 目标位姿 <strong>T</strong>，计算满足该位姿的 6 个关节角度 <strong>q</strong>，并验证路径无碰撞</p>
+</div>
+
+<h2 id="overview">1. 整体介绍</h2>
+
+<h3 id="overview-purpose">1.1 在机器人系统中的作用</h3>
+
+<p>逆运动学将笛卡尔工作空间的任务目标（"把铲斗移动到这个位置"）转换为关节空间的执行指令（"J1转30°, J2转-45°, ..."）。它是轨迹规划和运动控制之间的<strong>关键桥梁</strong>。</p>
+
+<ul>
+  <li><strong>轨迹规划可达性</strong>：判断给定的 TCP 位姿是否在机械臂工作空间内</li>
+  <li><strong>MoveIt2 集成</strong>：MoveIt2 的规划管道依赖 IK 将笛卡尔路径转换为关节轨迹</li>
+  <li><strong>铲取轨迹执行</strong>：将 YOZ 平面规划的 3D 铲取路径转换为可执行的关节角度序列</li>
+  <li><strong>GUI 交互</strong>：用户拖拽 TCP 目标时，实时求解对应关节角度</li>
+</ul>
+
+<h3 id="overview-io">1.2 输入与输出</h3>
+
+<table>
+<tr><th>符号</th><th>名称</th><th>维度</th><th>说明</th></tr>
+<tr><td>$T_{\text{target}}$</td><td>目标位姿</td><td>$4 \times 4$</td><td>期望的 TCP 齐次变换矩阵</td></tr>
+<tr><td>$q_{\text{seed}}$</td><td>种子角度</td><td>$6 \times 1$</td><td>IK 数值优化的初始猜测值</td></tr>
+<tr><td>$q_{\text{sol}}$</td><td>解角度</td><td>$6 \times 1$</td><td>满足约束的关节角度 (rad)</td></tr>
+<tr><td>SolveMode</td><td>求解模式</td><td>枚举</td><td>标识使用的松弛阶段 (strict/relaxed/very_relaxed/position_only)</td></tr>
+</table>
+
+<h3 id="overview-math">1.3 数学意义</h3>
+
+<p>逆运动学在数学上是一个<strong>欠定非线性优化问题</strong>：</p>
+
+$$q^* = \arg\min_q \underbrace{\|p(q) - p_{\text{target}}\|^2}_{\text{位置误差}} + \lambda \cdot \underbrace{\|\log(R(q)^T R_{\text{target}})\|_F^2}_{\text{方向误差}}$$
+
+<p>其中 $p(q) = \text{tform2trvec}(T(q))$ 是 FK 得到的 TCP 位置，$R(q)$ 是 FK 得到的旋转矩阵。</p>
+
+<p>UR10 有 6 个自由度，目标位姿在 SE(3) 中有 6 个独立参数（3 位置 + 3 姿态），因此原则上解是<strong>有限多解的</strong>（通常 8 组）。本项目的求解器通过<strong>种子角度</strong>和<strong>渐进松弛策略</strong>来引导收敛到期望的构型。</p>
+
+<h3 id="overview-dataflow">1.4 数据流</h3>
+
+<div class="mermaid">
+graph TB
+    subgraph Input
+        T_TARGET["T_target ∈ SE(3)<br/>目标 TCP 位姿"]
+        SEEDS["种子列表<br/>[q_current; q_home; zeros]"]
+    end
+    subgraph Solver["四阶段 IK 求解器 (solveTcpPoseIk)"]
+        S1["Stage 1: strict<br/>w_pos=[1,1,1]<br/>w_rot=[0.2,0.2,0.2]<br/>θ_limit=30°"]
+        S2["Stage 2: relaxed<br/>w_rot=[0.1,0.1,0.1]<br/>θ_limit=45°"]
+        S3["Stage 3: very_relaxed<br/>w_rot=[0.03,0.03,0.03]<br/>θ_limit=70°"]
+        S4["Stage 4: position_only<br/>w_rot=[0,0,0]<br/>θ_limit=∞"]
+        EVAL["选择最优解<br/>pos_err &lt; 3cm AND<br/>orient_err &lt; θ_limit"]
+    end
+    subgraph Output
+        Q_SOL["q_sol ∈ ℝ⁶ 或 不可达"]
+        MODE["SolveMode 标识"]
+    end
+    T_TARGET --> S1
+    SEEDS --> S1
+    S1 -->|"失败"| S2
+    S2 -->|"失败"| S3
+    S3 -->|"失败"| S4
+    S1 --> EVAL
+    S2 --> EVAL
+    S3 --> EVAL
+    S4 --> EVAL
+    EVAL --> Q_SOL
+    EVAL --> MODE
+</div>
+
+<h3 id="overview-applications">1.5 在本项目中的实际用途</h3>
+
+<ul>
+  <li><strong>moveToTrajectoryStart</strong>：求解到达铲取轨迹起点的单个 IK，然后用五次样条插值生成 70 步平滑过渡</li>
+  <li><strong>trackTrajectory</strong>：对 3D 轨迹（最多 140 个采样点）逐点求解 IK，用前一点解作为下一点的种子，确保连续性</li>
+  <li><strong>可达性验证</strong>：<code>ur10_gui_control_virtual.m</code> 中"检查可达性"按钮使用线性插值路径 + 碰撞检测来验证关节空间路径</li>
+</ul>
+
+<h2 id="source-analysis">2. 源码分析</h2>
+
+<h3 id="source-files">2.1 核心文件</h3>
+
+<table>
+<tr><th>文件</th><th>路径</th><th>作用</th></tr>
+<tr><td><strong>rtfg_kinematics.m</strong></td><td><code>realtime_trajectory_fit_gui/kinematics/rtfg_kinematics.m</code></td><td>★ 主 IK 求解器：四阶段渐进松弛 + 轨迹格式塔</td></tr>
+<tr><td><strong>ur10_gui_control_virtual.m</strong></td><td><code>test/virtual/ur10_gui_control_virtual.m</code></td><td>线性路径规划器（标注为 RRT 但实际为线性插值）+ 碰撞检测</td></tr>
+<tr><td><strong>main_realtime_trajectory_fit_gui.m</strong></td><td><code>realtime_trajectory_fit_gui/main_realtime_trajectory_fit_gui.m</code></td><td>IK 编排器：连接轨迹生成 → IK 求解 → 渲染</td></tr>
+</table>
+
+<h3 id="source-functions">2.2 函数详解</h3>
+
+<h4>solveTcpPoseIk — 核心四阶段 IK 求解器</h4>
+
+<p>这是整个 IK 系统的核心。采用<strong>四阶段渐进放宽</strong>策略处理不可行位姿：</p>
+
+<pre><code class="language-matlab">function [qsol, solInfo] = solveTcpPoseIk(ikSolver, targetTform, qSeeds)
+    weightSchedule = {
+        [1 1 1 0.20 0.20 0.20],  30,   'strict';         % 阶段1
+        [1 1 1 0.10 0.10 0.10],  45,   'relaxed';        % 阶段2
+        [1 1 1 0.03 0.03 0.03],  70,   'very_relaxed';   % 阶段3
+        [1 1 1 0.00 0.00 0.00],  inf,  'position_only'   % 阶段4
+    };
+    for stage = 1:4
+        ikSolver.Weights = weightSchedule{stage, 1};
+        angleLimit = weightSchedule{stage, 2};
+        for each seed in qSeeds
+            [qsol, solInfo] = ikSolver('sensor_shovel_tcp', targetTform, seed);
+            if solInfo.ExitFlag > 0
+                posErr = evaluatePosError(qsol, targetTform);
+                orientErr = evaluateOrientError(qsol, targetTform);
+                if posErr < 0.03 && orientErr < angleLimit
+                    return;  % 成功
+                end
+            end
+        end
+    end
+    error('目标不可达');
+end</code></pre>
+
+<table>
+<tr><th>阶段</th><th>位置权重</th><th>姿态权重</th><th>方向容差</th><th>含义</th></tr>
+<tr><td>strict</td><td>[1, 1, 1]</td><td>[0.20, 0.20, 0.20]</td><td>30°</td><td>严格要求位置和姿态同时满足</td></tr>
+<tr><td>relaxed</td><td>[1, 1, 1]</td><td>[0.10, 0.10, 0.10]</td><td>45°</td><td>姿态权重减半，允许更大方向误差</td></tr>
+<tr><td>very_relaxed</td><td>[1, 1, 1]</td><td>[0.03, 0.03, 0.03]</td><td>70°</td><td>姿态权重降到 3%，基本只关心位置</td></tr>
+<tr><td>position_only</td><td>[1, 1, 1]</td><td>[0, 0, 0]</td><td>∞</td><td>仅位置约束，放弃方向要求</td></tr>
+</table>
+
+<h4>buildIkSeedList — 种子生成</h4>
+
+<pre><code class="language-matlab">function seeds = buildIkSeedList(primarySeed, homeSeed)
+    seeds = {primarySeed};                          % 种子1: 当前角度
+    if norm(primarySeed - homeSeed) > 0.01
+        seeds{end+1} = homeSeed;                   % 种子2: 零位 (不同时)
+    end
+    seeds{end+1} = zeros(6, 1);                    % 种子3: 全零
+end</code></pre>
+
+<div class="notice info">
+  <strong>种子策略</strong>: 三个种子覆盖了典型的收敛情形。当前角度种子适合连续性轨迹跟踪（相邻点之间关节变化小），零位种子适合从初始姿态求解，全零种子作为最后的兜底尝试。
+</div>
+
+<h4>planRRTPath — 可达性路径规划</h4>
+
+<div class="notice warn">
+  <strong>命名澄清</strong>: 尽管函数名为 <code>planRRTPath</code>，其实现实际上是<strong>关节空间的线性插值</strong>(LERP)，而非标准的 RRT (Rapidly-exploring Random Tree) 算法。它通过在每个插值步长检查碰撞来验证可达性。
+</div>
+
+<pre><code class="language-matlab">function qPath = planRRTPath(q0, q1, robot, world, exemptPairs)
+    stepSize = 0.03;  % 弧度
+    dist = norm(q1 - q0);
+    nSteps = max(2, ceil(dist / stepSize));
+    qPath = interp1([0;1], [q0; q1], linspace(0,1,nSteps)');
+    % 在每个中间点检查碰撞
+    for k = 2:nSteps-1
+        [inCollision, sepDist] = checkCollision(robot, qPath(k,:), world, ...
+            'IgnoreSelfCollision', 'off', 'SkippedSelfCollisions', 'parent');
+        % 过滤豁免碰撞对
+    end
+end</code></pre>
+
+<h3 id="source-call-tree">2.3 调用关系</h3>
+
+<div class="mermaid">
+graph TB
+    subgraph GUI["main_realtime_trajectory_fit_gui.m"]
+        START["moveToTrajectoryStart<br/>移动到轨迹起点"]
+        TRACK["trackTrajectory<br/>跟踪完整轨迹"]
+    end
+    subgraph IK["rtfg_kinematics.m 核心求解器"]
+        ENS["ensureIkSolver<br/>创建 inverseKinematics 对象"]
+        SOLVE["solveTcpPoseIk<br/>四阶段渐进松弛"]
+        SEED["buildIkSeedList<br/>生成 3 个种子"]
+        EVAL["evaluateTcpPoseError<br/>pos_err + orient_err"]
+        PLAN["buildTrajectoryTargetPlan<br/>3D点 → SE(3) 目标位姿"]
+    end
+    subgraph Support["支撑模块"]
+        FK["rtfg_utils.m<br/>getTcpPosition<br/>computeTcpPath"]
+        QUINTIC["rtfg_quintic_joint_series.m<br/>五次样条平滑"]
+        DS["rtfg_downsample_target_plan_keep_boundaries.m<br/>智能降采样"]
+    end
+    START --> ENS
+    START --> SOLVE
+    TRACK --> SOLVE
+    TRACK --> PLAN
+    ENS --> SOLVE
+    SOLVE --> SEED
+    SOLVE --> EVAL
+    EVAL --> FK
+    START --> QUINTIC
+    TRACK --> DS
+</div>
+
+<h3 id="source-trajectory">2.4 轨迹 IK 工作流</h3>
+
+<p>完整的铲取轨迹 IK 求解流程：</p>
+
+<ol>
+  <li><strong>轨迹生成</strong>：<code>generate_trajectory_yoz.m</code> 在 YOZ 平面生成 2D 铲取路径（直线切入 → 圆弧装载 → 垂直抬升）</li>
+  <li><strong>3D 提升</strong>：<code>generate_trajectory_3d.m</code> 将 2D 路径扩展到指定 X 截面（固定 $x = x_{\text{plane}}$）</li>
+  <li><strong>构建 SE(3) 目标</strong>：<code>buildTrajectoryTargetPlan</code> 将 3D 位置点 + 默认朝向编码为 $4 \times 4$ 齐次变换</li>
+  <li><strong>降采样</strong>：<code>rtfg_downsample_target_plan_keep_boundaries</code> 将轨迹点降至最多 140 个，同时保留段边界</li>
+  <li><strong>逐点 IK</strong>：<code>trackTrajectory</code> 对每个采样点调用 <code>solveTcpPoseIk</code>，前一点解作为下一点的种子</li>
+  <li><strong>关节空间后处理</strong>：可选地调用 <code>rtfg_quintic_joint_series</code> 对关节路径进行五次样条平滑</li>
+</ol>
+
+<h2 id="dependencies">3. 依赖分析</h2>
+
+<table>
+<tr><th>库 / 工具箱</th><th>类型</th><th>用途</th><th>替代方案</th></tr>
+<tr><td><strong>Robotics System Toolbox</strong></td><td>MATLAB 工具箱</td><td><code>inverseKinematics</code> 数值 IK 求解器</td><td>TRAC-IK（ROS 生态中更健壮的 IK 求解器）、IKFast（解析解，仅适用于特定机器人）</td></tr>
+<tr><td><strong>Robotics System Toolbox</strong></td><td>MATLAB 工具箱</td><td><code>checkCollision</code> 碰撞检测（仅在 <code>ur10_gui_control_virtual.m</code> 中使用）</td><td>FCL (Flexible Collision Library)、MoveIt 碰撞检测</td></tr>
+<tr><td><strong>rtfg_utils.m</strong></td><td>内部模块</td><td>FK 计算（评估 IK 结果误差）、姿态/旋转工具函数</td><td>—</td></tr>
+</table>
+
+<h3 id="deps-libraries">3.1 库在本项目中的使用位置</h3>
+
+<div class="mermaid">
+graph LR
+    subgraph MATLAB工具箱
+        IK_TOOL["inverseKinematics"]
+        COL_TOOL["checkCollision"]
+    end
+    subgraph 本项目
+        a["rtfg_kinematics.m<br/>solveTcpPoseIk"] --> IK_TOOL
+        b["ur10_gui_control_virtual.m<br/>planRRTPath"] --> COL_TOOL
+    end
+</div>
+
+<h2 id="innovation">4. 创新点分析</h2>
+
+<h3 id="innovation-compare">4.1 与标准 IK 求解器的对比</h3>
+
+<table>
+<tr><th>方面</th><th>标准 IK (单次调用)</th><th>本项目四阶段松弛方法</th></tr>
+<tr><td>不可行位姿处理</td><td>直接返回失败（ExitFlag ≤ 0）</td><td>逐步放宽姿态约束，提供最佳可行近似（position_only 模式保证位置收敛）</td></tr>
+<tr><td>权重调优</td><td>需用户手动设置单组权重</td><td>自动尝试四组权重，无需人工介入</td></tr>
+<tr><td>多解管理</td><td>仅返回第一个局部最优解</td><td>通过 3 个种子点探索不同的局部最优，选择满足容差的最佳解</td></tr>
+<tr><td>轨迹连续性</td><td>每点独立求解，可能产生跳变</td><td>trackTrajectory 使用滑动种子确保帧间连续性</td></tr>
+</table>
+
+<h3 id="innovation-points">4.2 工程亮点</h3>
+
+<ul>
+  <li><strong>渐进松弛策略</strong>：从严格遵守 6-DOF 约束开始，逐步放宽到仅 3-DOF 位置约束。这在实际工程中非常实用——当铲斗无法以精确姿态到达目标时，至少可以保证位置到达</li>
+  <li><strong>多种子 + 早停</strong>：每个阶段对所有种子尝试求解，一旦找到满足容差的解立即返回。避免了不必要的计算</li>
+  <li><strong>固定 30mm 位置阈值</strong>：3cm 的位置容差基于铲取任务的实际需求设定（铲斗需要在泥面附近精确定位），而非随意选择</li>
+  <li><strong>轨迹格式塔平滑</strong>：<code>rtfg_quintic_joint_series</code> 使用 $10t^3 - 15t^4 + 6t^5$ 五次多项式，保证位置、速度、加速度在起点和终点都为零，实现无冲击运动</li>
+</ul>
+
+<h3 id="innovation-limits">4.3 局限性</h3>
+
+<ul>
+  <li><strong>不是真正的 RRT</strong>：<code>planRRTPath</code> 仅做线性插值 + 碰撞检测，遇到障碍物时没有绕行重规划能力。如果需要避障路径规划，应替换为真正的 RRT/RRT* 或集成 OMPL</li>
+  <li><strong>纯数值方法</strong>：依赖 MATLAB 的 <code>inverseKinematics</code> 函数，这是一个数值迭代求解器。对于 UR10 这种有解析 IK 解的机器人，解析方法更快且能返回所有解</li>
+  <li><strong>姿态表示局限</strong>：使用权重法处理姿态约束，而非更精确的流形优化（如直接在 SO(3) 上优化）</li>
+  <li><strong>无冗余利用</strong>：UR10 在 6-DOF 任务中通常有 8 组 IK 解，本项目仅通过 3 个种子探索其中一部分。如果需要全局最优构型（如最小化关节力矩），需要更系统的搜索</li>
+</ul>
+
+<h3 id="innovation-future">4.4 未来可改进方向</h3>
+
+<ul>
+  <li>集成 OMPL/C++ 规划器用于含障碍物的复杂场景路径规划</li>
+  <li>添加解析 IK 解（基于 UR10 DH 参数），作为数值求解器的初始化或验证</li>
+  <li>在四阶段松弛中引入基于任务的自适应容差（例如，铲泥阶段需要严格姿态，空载返回阶段可以容忍更大误差）</li>
+</ul>
+
+  </div>
+  <footer class="page-footer">
+    <a href="../%E6%AD%A3%E8%BF%90%E5%8A%A8%E5%AD%A6/index.html">← 上一模块：正运动学</a>
+    <a href="../%E9%80%86%E5%8A%A8%E5%8A%9B%E5%AD%A6/index.html">下一模块：逆动力学 →</a>
+  </footer>
+</main>
+
+  <script>
+(function(){'use strict';
+var sidebar=document.getElementById('sidebar');
+var toggleBtn=document.getElementById('sidebarToggle');
+if(toggleBtn&&sidebar){toggleBtn.addEventListener('click',function(e){e.stopPropagation();sidebar.classList.toggle('open');});document.addEventListener('click',function(e){if(!sidebar.contains(e.target)&&e.target!==toggleBtn){sidebar.classList.remove('open');}});}
+var tocContainer=document.getElementById('toc');
+var mainContent=document.querySelector('.main-content');
+if(tocContainer&&mainContent){var headings=mainContent.querySelectorAll('h2,h3');if(headings.length>1){var tocTitle=document.createElement('h4');tocTitle.textContent='目录';tocContainer.appendChild(tocTitle);headings.forEach(function(h,i){var id=h.id||('section-'+i);h.id=id;var link=document.createElement('a');link.href='#'+id;link.textContent=h.textContent;link.className=h.tagName==='H3'?'toc-h3':'';tocContainer.appendChild(link);});var observer=new IntersectionObserver(function(entries){entries.forEach(function(entry){var id=entry.target.id;var tocLink=tocContainer.querySelector('a[href="#'+id+'"]');if(tocLink){if(entry.isIntersecting){tocContainer.querySelectorAll('a.visible').forEach(function(a){a.classList.remove('visible');});tocLink.classList.add('visible');}}});},{rootMargin:'-80px 0px -70% 0px',threshold:0});headings.forEach(function(h){observer.observe(h);});}}
+var currentPage=window.location.pathname.split('/').filter(Boolean).pop()||'';
+document.querySelectorAll('.nav-list li a').forEach(function(a){var href=a.getAttribute('href')||'';if(href.includes(currentPage)&&currentPage!==''){a.parentElement.classList.add('active');}});
+document.querySelectorAll('a[href^="http"]').forEach(function(a){a.setAttribute('target','_blank');a.setAttribute('rel','noopener noreferrer');});
+})();
+  </script>
+</body>
+</html>

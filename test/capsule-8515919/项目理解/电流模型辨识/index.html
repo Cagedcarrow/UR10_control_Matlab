@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>电流模型辨识 — UR10 技术文档</title>
+  <style>
+:root {
+  --bg-primary: #0d1117; --bg-secondary: #161b22; --bg-card: #1c2333;
+  --bg-code: #0d1117; --text-primary: #e6edf3; --text-secondary: #8b949e;
+  --text-muted: #6e7681; --accent: #58a6ff; --accent-green: #3fb950;
+  --accent-orange: #d29922; --accent-purple: #a371f7; --accent-red: #f85149;
+  --border: #30363d; --shadow: 0 2px 8px rgba(0,0,0,0.4); --radius: 8px;
+  --sidebar-width: 260px; --toc-width: 220px;
+  --font-mono: 'JetBrains Mono','Fira Code','Cascadia Code','Consolas',monospace;
+  --font-sans: -apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans SC',sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; font-size: 15px; }
+body { font-family: var(--font-sans); background: var(--bg-primary); color: var(--text-primary); line-height: 1.7; min-height: 100vh; }
+.sidebar { position: fixed; top: 0; left: 0; width: var(--sidebar-width); height: 100vh; background: var(--bg-secondary); border-right: 1px solid var(--border); overflow-y: auto; z-index: 100; transition: transform 0.3s ease; padding-bottom: 2rem; }
+.sidebar-header { padding: 1.5rem 1.2rem 1rem; border-bottom: 1px solid var(--border); margin-bottom: 0.5rem; }
+.sidebar-header h2 { font-size: 1.15rem; color: var(--accent); letter-spacing: 0.5px; }
+.sidebar-header .subtitle { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem; }
+.nav-list { list-style: none; padding: 0 0.5rem; }
+.nav-list li { margin: 0; }
+.nav-list li a { display: block; padding: 0.45rem 0.8rem; color: var(--text-secondary); text-decoration: none; border-radius: 6px; font-size: 0.88rem; transition: background 0.15s, color 0.15s; }
+.nav-list li a:hover { background: rgba(88,166,255,0.08); color: var(--text-primary); }
+.nav-list li.active a, .nav-list li.active a:hover { background: rgba(88,166,255,0.15); color: var(--accent); font-weight: 600; }
+.nav-section { padding: 0.6rem 0.8rem 0.2rem; font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); letter-spacing: 1px; font-weight: 700; }
+.content { margin-left: var(--sidebar-width); padding: 2rem 3rem; max-width: calc(100% - var(--sidebar-width) - var(--toc-width)); min-height: 100vh; }
+.main-content { max-width: 900px; }
+.sidebar-toggle { display: none; position: fixed; top: 1rem; left: 1rem; z-index: 200; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem 0.7rem; cursor: pointer; font-size: 1.2rem; }
+.toc { position: fixed; right: 1.5rem; top: 2rem; width: var(--toc-width); max-height: calc(100vh - 4rem); overflow-y: auto; font-size: 0.8rem; border-left: 1px solid var(--border); padding-left: 1rem; }
+.toc h4 { color: var(--text-secondary); margin-bottom: 0.5rem; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.5px; }
+.toc a { display: block; color: var(--text-muted); text-decoration: none; padding: 0.15rem 0; transition: color 0.15s; }
+.toc a:hover, .toc a.visible { color: var(--accent); }
+.toc a.toc-h3 { padding-left: 0.75rem; font-size: 0.78rem; }
+h1 { font-size: 2rem; margin-bottom: 0.5rem; color: var(--text-primary); border-bottom: 2px solid var(--border); padding-bottom: 0.5rem; }
+h2 { font-size: 1.5rem; margin: 2.5rem 0 1rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+h3 { font-size: 1.2rem; margin: 1.8rem 0 0.8rem; color: var(--text-primary); }
+h4 { font-size: 1rem; margin: 1.2rem 0 0.5rem; color: var(--text-secondary); }
+p { margin: 0.8rem 0; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+strong { color: var(--text-primary); }
+ul, ol { margin: 0.5rem 0 0.5rem 1.5rem; }
+li { margin: 0.25rem 0; }
+code { font-family: var(--font-mono); font-size: 0.88em; background: var(--bg-code); padding: 0.15em 0.4em; border-radius: 4px; border: 1px solid var(--border); }
+pre { background: var(--bg-code); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.2rem; overflow-x: auto; margin: 1rem 0; font-size: 0.82rem; line-height: 1.55; }
+pre code { background: none; border: none; padding: 0; font-size: inherit; }
+table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.88rem; }
+thead { background: var(--bg-card); }
+th { text-align: left; padding: 0.6rem 0.8rem; font-weight: 600; color: var(--accent); border-bottom: 2px solid var(--border); position: sticky; top: 0; }
+td { padding: 0.5rem 0.8rem; border-bottom: 1px solid var(--border); }
+tr:hover td { background: rgba(88,166,255,0.04); }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.2rem; margin: 1.5rem 0; }
+.card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; transition: border-color 0.2s, transform 0.15s; text-decoration: none; color: var(--text-primary); display: block; }
+.card:hover { border-color: var(--accent); transform: translateY(-2px); text-decoration: none; }
+.card h3 { color: var(--accent); margin: 0 0 0.5rem; font-size: 1.1rem; }
+.card p { color: var(--text-secondary); font-size: 0.88rem; margin: 0; }
+.card .io { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.5rem; font-family: var(--font-mono); }
+.notice { border-left: 4px solid var(--accent); background: rgba(88,166,255,0.06); padding: 0.8rem 1rem; margin: 1rem 0; border-radius: 0 var(--radius) var(--radius) 0; font-size: 0.9rem; }
+.notice.warn { border-color: var(--accent-orange); background: rgba(210,153,34,0.06); }
+.notice.info { border-color: var(--accent-green); background: rgba(63,185,80,0.06); }
+.mermaid { text-align: center; margin: 1.5rem 0; overflow-x: auto; background: transparent; }
+.mermaid svg { max-width: 100%; height: auto; }
+mjx-container { overflow-x: auto; }
+.page-footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--border); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
+.page-footer a { color: var(--accent); text-decoration: none; font-size: 0.9rem; padding: 0.4rem 0; }
+.page-footer a:hover { text-decoration: underline; }
+.tag { display: inline-block; padding: 0.15rem 0.5rem; background: rgba(88,166,255,0.12); color: var(--accent); border-radius: 12px; font-size: 0.75rem; margin: 0.1rem; }
+.tag.green { background: rgba(63,185,80,0.12); color: var(--accent-green); }
+.tag.orange { background: rgba(210,153,34,0.12); color: var(--accent-orange); }
+.tag.purple { background: rgba(163,113,247,0.12); color: var(--accent-purple); }
+.hero { text-align: center; padding: 2rem 0 1.5rem; }
+.hero h1 { font-size: 2.4rem; border: none; margin-bottom: 0.5rem; }
+.hero .subtitle { color: var(--text-secondary); font-size: 1.05rem; max-width: 600px; margin: 0 auto; }
+@media (max-width: 1200px) { .toc { display: none; } .content { max-width: calc(100% - var(--sidebar-width)); } }
+@media (max-width: 768px) { :root { font-size: 14px; } .sidebar { transform: translateX(-100%); } .sidebar.open { transform: translateX(0); } .sidebar-toggle { display: block; } .content { margin-left: 0; max-width: 100%; padding: 1.2rem; } .card-grid { grid-template-columns: 1fr; } .page-footer { flex-direction: column; } }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>mermaid.initialize({startOnLoad:true, theme:'dark', themeVariables:{primaryColor:'#1c2333',primaryTextColor:'#e6edf3',primaryBorderColor:'#30363d',lineColor:'#58a6ff',secondaryColor:'#161b22',tertiaryColor:'#0d1117'}});</script>
+  <script>MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']]},svg:{fontCache:'global'}};</script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script>document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});</script>
+</head>
+<body>
+
+<nav id="sidebar" class="sidebar">
+  <div class="sidebar-header">
+    <h2>UR10 技术文档</h2>
+    <div class="subtitle">机械臂运动学与动力学</div>
+  </div>
+  <ul class="nav-list">
+    <li><a href="../README.html">项目概览</a></li>
+    <li class="nav-section">运动学</li>
+    <li><a href="../%E6%AD%A3%E8%BF%90%E5%8A%A8%E5%AD%A6/index.html">正运动学</a></li>
+    <li><a href="../%E9%80%86%E8%BF%90%E5%8A%A8%E5%AD%A6/index.html">逆运动学</a></li>
+    <li class="nav-section">动力学</li>
+    <li><a href="../%E9%80%86%E5%8A%A8%E5%8A%9B%E5%AD%A6/index.html">逆动力学</a></li>
+    <li class="nav-section">辨识</li>
+    <li class="active"><a href="index.html">电流模型辨识</a></li>
+  </ul>
+</nav>
+
+<main id="content" class="content">
+  <button id="sidebarToggle" class="sidebar-toggle">☰</button>
+  <div id="toc" class="toc"></div>
+  <div class="main-content">
+
+<h1>电流模型辨识 (Current Model Identification)</h1>
+
+<div class="hero">
+  <p class="subtitle">基于实测 CSV 数据，通过 Simulink 管道验证线性电流估计模型，输出逐关节误差指标 (RMSE/MAE/MaxAbs)</p>
+</div>
+
+<h2 id="overview">1. 整体介绍</h2>
+
+<h3 id="overview-purpose">1.1 在机器人系统中的作用</h3>
+
+<p>电流模型辨识是连接<strong>理论动力学</strong>和<strong>实际电机控制</strong>的桥梁。UR10 驱动器的控制回路以<strong>电流</strong>为单位（而非力矩），因此需要精确的电流模型来实现：</p>
+
+<ul>
+  <li><strong>前馈电流控制</strong>：将期望运动的动力学需求（惯性 + 科里奥利 + 重力 + 摩擦）转换为参考电流 $i_{\text{ref}}$</li>
+  <li><strong>模型验证</strong>：对比简化线性模型和完整非线性模型的精度差异，评估辨识收益</li>
+  <li><strong>参数标定</strong>：通过批量评估管道，系统化地确定各关节的电流-运动映射关系</li>
+  <li><strong>C++ 求解器基准</strong>：MATLAB 侧的线性模型为 C++ 逆动力学求解器中的高精度辨识模型提供了基准对比</li>
+</ul>
+
+<h3 id="overview-io">1.2 输入与输出</h3>
+
+<table>
+<tr><th>符号</th><th>名称</th><th>维度</th><th>来源</th></tr>
+<tr><td>$q(t)$</td><td>实测关节位置</td><td>$N \times 6$</td><td>CSV: Act_q0 ~ Act_q5</td></tr>
+<tr><td>$\dot{q}(t)$</td><td>实测关节速度</td><td>$N \times 6$</td><td>CSV: Act_qd0 ~ Act_qd5</td></tr>
+<tr><td>$I_{\text{meas}}(t)$</td><td>实测电机电流</td><td>$N \times 6$</td><td>CSV: Act_I0 ~ Act_I5</td></tr>
+<tr><td>$\ddot{q}(t)$</td><td>数值加速度</td><td>$N \times 6$</td><td>$\ddot{q}(t) = \Delta \dot{q}(t) / \Delta t$</td></tr>
+</table>
+
+<p><strong>输出</strong>：</p>
+<ul>
+  <li><strong>模型参数</strong>: $(b, k_q, k_{\dot{q}}, k_{\ddot{q}}) \in \mathbb{R}^{6 \times 4}$</li>
+  <li><strong>误差指标</strong>: RMSE, MAE, MaxAbs (逐关节)</li>
+  <li><strong>评估报告</strong>: summary.csv + overall_report.md</li>
+</ul>
+
+<h3 id="overview-math">1.3 数学模型</h3>
+
+<h4>简化线性模型 (MATLAB Simulink 中使用的版本)</h4>
+
+$$\boxed{i_{\text{est},j} = b_j + k_{q,j} \cdot q_j + k_{\dot{q},j} \cdot \dot{q}_j + k_{\ddot{q},j} \cdot \ddot{q}_j}, \quad j = 1,\dots,6$$
+
+<p>其中 $\odot$ 表示逐元素乘积（每个关节独立建模，共 24 个参数）。</p>
+
+<p>力矩通过电机增益转换：</p>
+
+$$\tau_{\text{est},j} = K_j \cdot i_{\text{est},j}$$
+
+<div class="notice warn">
+  <strong>模型层级说明</strong>: 此线性模型是<strong>简化近似版</strong>。完整的逆动力学模型（C++ 侧）使用非线性 Sigmoid 摩擦、$6 \times 6$ 耦合惯性矩阵、科里奥利向量和重力向量的联合计算。线性模型忽略关节之间的动力学耦合，仅作为快速原型和模型复杂度的下限基准。
+</div>
+
+<h4>误差指标定义</h4>
+
+<p>对于每个关节 $j$，在 $N$ 个时间采样点上：</p>
+
+$$\text{RMSE}_j = \sqrt{\frac{1}{N}\sum_{t=1}^{N}\left(i_{\text{est},j}(t) - i_{\text{meas},j}(t)\right)^2}$$
+
+$$\text{MAE}_j = \frac{1}{N}\sum_{t=1}^{N}|i_{\text{est},j}(t) - i_{\text{meas},j}(t)|$$
+
+$$\text{MaxAbs}_j = \max_{t=1}^{N}|i_{\text{est},j}(t) - i_{\text{meas},j}(t)|$$
+
+<h3 id="overview-pipeline">1.4 辨识管道</h3>
+
+<div class="mermaid">
+graph TB
+    subgraph Data["数据采集"]
+        CSV["session_data.csv<br/>Act_q*, Act_qd*, Act_I*"]
+        READ["读取 CSV<br/>readtable + 时间对齐"]
+    end
+    subgraph Preprocess["预处理"]
+        T["构建时间向量<br/>t = (0:N-1)·dt"]
+        DDQ["数值微分<br/>ddq = diff(dq)/dt"]
+    end
+    subgraph Simulink["Simulink 仿真"]
+        MOTION["JointSpaceMotionModel<br/>一阶低通滤波器<br/>x'=(1-α)x + αu"]
+        DERIV1["Discrete Derivative<br/>dq = Δq/dt"]
+        DERIV2["Discrete Derivative<br/>ddq = Δdq/dt"]
+        EST["Interpreted MATLAB Fcn<br/>estimate_current_simple"]
+        GAIN["Product (.*)<br/>× motor_gains → τ"]
+    end
+    subgraph Eval["误差评估"]
+        COMP["i_est vs i_meas<br/>逐点对比"]
+        RMSE["RMSE<br/>sqrt(mean(err²))"]
+        MAE["MAE<br/>mean(|err|)"]
+        MAX["MaxAbs<br/>max(|err|)"]
+    end
+    subgraph Report["报告输出"]
+        SUMMARY["summary.csv<br/>逐文件统计"]
+        REPORT["overall_report.md<br/>总体统计 + 最差案例"]
+    end
+    CSV --> READ
+    READ --> T
+    READ --> DDQ
+    T --> MOTION
+    MOTION --> DERIV1
+    DERIV1 --> DERIV2
+    DERIV1 --> EST
+    DERIV2 --> EST
+    READ --> EST
+    EST --> GAIN
+    EST --> COMP
+    READ --> COMP
+    COMP --> RMSE
+    COMP --> MAE
+    COMP --> MAX
+    RMSE --> SUMMARY
+    MAE --> SUMMARY
+    MAX --> SUMMARY
+    SUMMARY --> REPORT
+</div>
+
+<h3 id="overview-applications">1.5 典型应用场景</h3>
+
+<ul>
+  <li><strong>模型选型</strong>：快速对比不同模型复杂度（线性 → Sigmoid 摩擦 → 完整逆动力学）的精度收益</li>
+  <li><strong>数据采集后处理</strong>：批量评估管道自动扫描目录树中的所有 <code>session_data.csv</code> 文件，适用于机器人长时间运行后的数据批处理</li>
+  <li><strong>硬件健康监控</strong>：通过跟踪单关节误差趋势，检测减速器磨损（摩擦增加 → 残差增大）</li>
+</ul>
+
+<h2 id="source-analysis">2. 源码分析</h2>
+
+<h3 id="source-files">2.1 核心文件</h3>
+
+<table>
+<tr><th>文件</th><th>路径</th><th>作用</th></tr>
+<tr><td><strong>estimate_current_simple.m</strong></td><td><code>test/virtual/utils/estimate_current_simple.m</code></td><td>★ 核心估计函数：单行线性模型</td></tr>
+<tr><td><strong>evaluate_current_estimation_batch.m</strong></td><td><code>test/virtual/evaluate_current_estimation_batch.m</code></td><td>★ 批量评估管道：发现 CSV → 仿真 → 指标汇总</td></tr>
+<tr><td><strong>init_virtual_ur10.m</strong></td><td><code>test/virtual/init_virtual_ur10.m</code></td><td>默认模型参数配置 (b, kq, kdq, kddq, motorGains)</td></tr>
+<tr><td><strong>create_or_load_virtual_simulink_model.m</strong></td><td><code>test/virtual/create_or_load_virtual_simulink_model.m</code></td><td>Simulink 模型程序化构建</td></tr>
+<tr><td><strong>run_virtual_trajectory_demo.m</strong></td><td><code>test/virtual/run_virtual_trajectory_demo.m</code></td><td>无 GUI 的独立演示运行</td></tr>
+</table>
+
+<h3 id="source-functions">2.2 函数详解</h3>
+
+<h4>estimate_current_simple.m — 核心估计函数</h4>
+
+<pre><code class="language-matlab">function i_est = estimate_current_simple(q, dq, ddq, kq, kdq, kddq, b)
+    q = q(:); dq = dq(:); ddq = ddq(:);          % 确保列向量
+    kq = kq(:); kdq = kdq(:); kddq = kddq(:); b = b(:);
+    i_est = b + kq .* q + kdq .* dq + kddq .* ddq;  % ★ 核心公式
+end</code></pre>
+
+<div class="notice info">
+  <strong>设计要点</strong>: 函数签名中参数 $(b, k_q, k_{\dot{q}}, k_{\ddot{q}})$ 显式传入而非硬编码，使得该函数在 Simulink 中可参数化——修改 base workspace 中的变量即可改变模型行为，无需重建 Simulink 模型。这一设计支持<strong>参数扫描</strong>（遍历不同参数组合评估误差）。
+</div>
+
+<h4>evaluate_current_estimation_batch.m — 批量评估管道</h4>
+
+<pre><code class="language-matlab">function result = evaluate_current_estimation_batch(dataRoot, cfg, opts)
+    % 1. 递归查找所有 session_data.csv
+    csvFiles = dir(fullfile(dataRoot, '**/session_data.csv'));
+
+    % 2. 加载 Simulink 模型并配置
+    mdl = load_system(cfg.simModelName);
+
+    % 3. 对每个文件执行 evaluateOneFile
+    for i = 1:length(csvFiles)
+        r = evaluateOneFile(mdl, cfg, fullfile(csvFiles(i).folder, csvFiles(i).name), ...);
+        perFileMetrics{i} = r;    % 存储指标
+    end
+
+    % 4. 汇总统计
+    overall = aggregateMetrics(perFileMetrics);
+    % 5. 输出 summary.csv + overall_report.md
+end</code></pre>
+
+<h4>evaluateOneFile — 单文件评估</h4>
+
+<p><strong>完整数据流</strong>：</p>
+
+<ol>
+  <li><strong>读取 CSV</strong>: 提取 $q$, $\dot{q}$, $I_{\text{meas}}$ 矩阵 ($N \times 6$)</li>
+  <li><strong>构建时间</strong>: $t = (0:N-1) \cdot \Delta t$</li>
+  <li><strong>数值加速度</strong>: $\ddot{q} = [\text{zeros}(1,6); \text{diff}(\dot{q}) / \Delta t]$</li>
+  <li><strong>配置 Simulink 输入</strong>: 创建 <code>Simulink.SimulationInput</code>，设置 5 个 From Workspace 变量
+    <ul>
+      <li><code>q_cmd_ts</code> — 关节命令 (timeseries)</li>
+      <li><code>q_ref_ts</code> — 实测位置参考</li>
+      <li><code>dq_ref_ts</code> — 实测速度参考</li>
+      <li><code>tau_csv_ref_ts</code> — CSV 中 tau_estimated 参考</li>
+      <li><code>tau_from_i_ref_ts</code> — 从实测电流反算的力矩参考</li>
+    </ul>
+  </li>
+  <li><strong>运行仿真</strong>: <code>sim(mdl, simIn)</code></li>
+  <li><strong>提取结果</strong>: 从 <code>yout</code> 的第 4 个 Outport 取 $i_{\text{est}}$</li>
+  <li><strong>计算误差</strong>: $e = i_{\text{est}} - i_{\text{meas}}$，逐关节计算 RMSE/MAE/MaxAbs</li>
+  <li><strong>可选绘图</strong>: <code>*_current_compare.png</code>（最多 maxPlots 个文件）</li>
+</ol>
+
+<h4>Simulink 模型结构</h4>
+
+<div class="mermaid">
+graph LR
+    subgraph inputs["From Workspace"]
+        Q_CMD["q_cmd_ts"]
+        Q_REF["q_ref_ts"]
+        DQ_REF["dq_ref_ts"]
+        TAU_CSV["tau_csv_ref_ts"]
+        TAU_I["tau_from_i_ref_ts"]
+    end
+    subgraph motion["运动模型"]
+        JSM["JointSpaceMotionModel<br/>Discrete State-Space<br/>A=(1-α)·I₆<br/>B=α·I₆<br/>C=I₆, D=0₆<br/>X₀=zeros(6,1)"]
+    end
+    subgraph derivative["数值微分"]
+        DD1["Discrete Derivative<br/>gain = 1/dt"]
+        DD2["Discrete Derivative<br/>gain = 1/dt"]
+    end
+    subgraph estimation["电流估计"]
+        MUX["Mux(3)<br/>[q; dq; ddq]"]
+        FUNC["Interpreted MATLAB Fcn<br/>estimate_current_simple"]
+    end
+    subgraph outputs["输出 (yout)"]
+        O1["Out1: q_actual"]
+        O2["Out2: dq_actual"]
+        O3["Out3: tau_est"]
+        O4["Out4: i_est"]
+    end
+    Q_CMD --> JSM
+    JSM -->|"q_actual"| O1
+    JSM --> DD1
+    DD1 -->|"dq_actual"| O2
+    DD1 --> DD2
+    DD2 -->|"ddq_est"| MUX
+    JSM --> MUX
+    DD1 --> MUX
+    MUX --> FUNC
+    FUNC -->|"i_est"| O4
+    FUNC -->|"× motor_gains"| O3
+</div>
+
+<div class="notice">
+  <strong>运动模型参数</strong>: $\alpha = \min(1, \max(0, \Delta t/0.25))$。当采样周期 $\Delta t = 0.02\text{s}$ 时，$\alpha = 0.08$。这一阶低通滤波器模拟了真实 UR10 关节的响应延迟——命令角度不是瞬时到达的，而是以时间常数 $\tau = 0.25\text{s}$ 渐近逼近。
+</div>
+
+<h3 id="source-defaults">2.3 默认模型参数</h3>
+
+<p>来自 <code>init_virtual_ur10.m</code>：</p>
+
+<table>
+<tr><th>参数</th><th>J1</th><th>J2</th><th>J3</th><th>J4</th><th>J5</th><th>J6</th><th>单位</th></tr>
+<tr><td>$b$ (偏置)</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>A</td></tr>
+<tr><td>$k_q$ (位置增益)</td><td>0.12</td><td>0.10</td><td>0.10</td><td>0.06</td><td>0.05</td><td>0.05</td><td>A/rad</td></tr>
+<tr><td>$k_{\dot{q}}$ (速度增益)</td><td>0.85</td><td>0.88</td><td>0.82</td><td>0.45</td><td>0.40</td><td>0.36</td><td>A·s/rad</td></tr>
+<tr><td>$k_{\ddot{q}}$ (加速度增益)</td><td>0.16</td><td>0.18</td><td>0.16</td><td>0.08</td><td>0.07</td><td>0.06</td><td>A·s²/rad</td></tr>
+<tr><td>$K$ (电机增益)</td><td>13.6</td><td>13.2</td><td>12.9</td><td>9.5</td><td>9.1</td><td>8.4</td><td>Nm/A</td></tr>
+</table>
+
+<div class="notice info">
+  <strong>参数规律</strong>: 注意到 $k_q, k_{\dot{q}}, k_{\ddot{q}}$ 在 J1-J3（基座/大臂/肘部）上显著大于 J4-J6（腕部）。这反映了物理规律——基座端关节驱动更大的惯量，需要更大的电流增益。偏置 $b$ 全为零，说明在辨识时假设了无摩擦偏置或已被吸收到 Sigmoid 偏移 $f_o$ 中。<br><br>
+  <strong>与 C++ 侧电机增益的差异</strong>: MATLAB 侧的增益值 (13.6, 13.2, ...) 是 C++ 侧精确辨识值 (13.5841, 14.2959, ...) 的整数近似。精确值来自系统辨识实验。
+</div>
+
+<h3 id="source-batch-output">2.4 批量评估输出物</h3>
+
+<table>
+<tr><th>输出文件</th><th>内容</th></tr>
+<tr><td><code>summary.csv</code></td><td>每个 session 的逐关节 RMSE, MAE, MaxAbs，包含 rmse_mean, mae_mean, maxabs_max</td></tr>
+<tr><td><code>overall_report.md</code></td><td>所有文件的汇总统计（逐关节均值、95 百分位数），前 10 最差案例列表</td></tr>
+<tr><td><code>*_current_compare.png</code></td><td>每文件的 6 关节对比子图（$i_{\text{est}}$ vs $i_{\text{meas}}$），最大生成数由 opts.maxPlots 控制</td></tr>
+</table>
+
+<h3 id="source-call-tree">2.5 模块调用关系</h3>
+
+<div class="mermaid">
+graph TB
+    subgraph Config["配置层"]
+        INIT["init_virtual_ur10.m<br/>参数 + 路径 + 模型配置"]
+    end
+    subgraph Build["构建层"]
+        BUILD_ROBOT["build_ur10_virtual_robot.m<br/>xacro → rigidBodyTree"]
+        BUILD_SIM["create_or_load_virtual_simulink_model.m<br/>程序化搭建 Simulink 模型"]
+    end
+    subgraph Execute["执行层"]
+        DEMO["run_virtual_trajectory_demo.m<br/>预定义轨迹仿真"]
+        BATCH["evaluate_current_estimation_batch.m<br/>批量 CSV 评估"]
+        GUI["ur10_gui_control_virtual.m<br/>交互式 GUI 控制"]
+    end
+    subgraph Core["核心层"]
+        ESTIMATE["estimate_current_simple.m<br/>i = b + kq·q + kdq·dq + kddq·ddq"]
+        FK["fk_tcp_pose.m<br/>TCP 位置计算"]
+    end
+    INIT --> BUILD_ROBOT
+    INIT --> BUILD_SIM
+    BUILD_ROBOT --> BUILD_SIM
+    BUILD_SIM --> DEMO
+    BUILD_SIM --> BATCH
+    BUILD_SIM --> GUI
+    DEMO --> ESTIMATE
+    BATCH --> ESTIMATE
+    GUI --> ESTIMATE
+    DEMO --> FK
+    GUI --> FK
+</div>
+
+<h2 id="dependencies">3. 依赖分析</h2>
+
+<table>
+<tr><th>库 / 工具箱</th><th>类型</th><th>用途</th><th>替代方案</th></tr>
+<tr><td><strong>MATLAB Simulink</strong></td><td>工具箱</td><td><code>ur10_virtual_jointspace</code> 模型仿真：MotionModel、Derivative、Interpreted MATLAB Function</td><td>Simscape Multibody（物理级仿真），Gazebo（ROS 生态）</td></tr>
+<tr><td><strong>Robotics System Toolbox</strong></td><td>工具箱</td><td>rigidBodyTree, getTransform (FK), show (渲染)</td><td>—</td></tr>
+<tr><td><strong>MATLAB Base</strong></td><td>核心</td><td>readtable (CSV 读取), dir/recursive (文件发现), polyfit/polyval (多项式拟合)</td><td>Python pandas + numpy（但需重建 Simulink 管道）</td></tr>
+<tr><td><strong>实机 CSV 数据</strong></td><td>外部数据</td><td><code>data/**/session_data.csv</code>：UR10 驱动记录的 Act_q*, Act_qd*, Act_I*</td><td>ROS2 bag → csv 转换</td></tr>
+</table>
+
+<h2 id="innovation">4. 创新点分析</h2>
+
+<h3 id="innovation-compare">4.1 与标准辨识方法的对比</h3>
+
+<table>
+<tr><th>方面</th><th>标准方法（激励轨迹 + LS）</th><th>本项目方法（CSV 回放 + Simulink）</th></tr>
+<tr><td>数据采集</td><td>设计专用激励轨迹（如傅里叶级数轨迹），一次实验</td><td>利用日常作业的 CSV 记录，零额外采集成本</td></tr>
+<tr><td>模型结构</td><td>完整逆动力学（$H\ddot{q} + C\dot{q} + g + f$），参数多</td><td>简化线性模型（4 参数/关节），共 24 参数</td></tr>
+<tr><td>参数估计方法</td><td>最小二乘 / 加权最小二乘 / 最大似然</td><td>固定经验参数（首版），待添加自动拟合</td></tr>
+<tr><td>验证方式</td><td>交叉验证集 / 留一法</td><td>全套 Simulink 仿真：$i_{\text{est}}$ vs $i_{\text{meas}}$ 时间序列对比</td></tr>
+<tr><td>可扩展性</td><td>新机器人需重新设计激励轨迹</td><td>仅需 CSV 数据，批处理管道通用</td></tr>
+</table>
+
+<h3 id="innovation-points">4.2 工程亮点</h3>
+
+<ul>
+  <li><strong>端到端自动化管道</strong>：<code>evaluate_current_estimation_batch</code> 实现了从 CSV 发现 → Simulink 仿真 → 误差统计 → 报告生成的全自动流程。用户只需指定 <code>dataRoot</code> 目录，无需手动干预</li>
+  <li><strong>参数分离设计</strong>：<code>estimate_current_simple</code> 将模型参数作为函数参数传入（而非硬编码），使得参数扫描和模型对比可以通过修改 workspace 变量实现，无需重新生成 Simulink 模型</li>
+  <li><strong>线性模型作为复杂度下限</strong>：4 参数/关节的线性模型故意简化，其 RMSE 作为基准来衡量 C++ 侧 30 参数/关节的 Sigmoid 摩擦 + 耦合动力学模型的改进幅度</li>
+  <li><strong>多层次评估指标</strong>：RMSE（大误差惩罚重）、MAE（平均误差）、MaxAbs（最差情况）三者互补，全面评估模型在不同工况下的表现</li>
+  <li><strong>加速度激励度指标</strong>：输出 ddq_rms 用以评估 CSV 数据的"信息含量"。低 ddq_rms 的数据段（如匀速运动）对惯性参数不敏感，辨识结果不可靠——在报告中标记这些案例有助于数据质量诊断</li>
+</ul>
+
+<h3 id="innovation-limits">4.3 局限性</h3>
+
+<ul>
+  <li><strong>忽略关节耦合</strong>：线性模型对每个关节独立建模，忽略了惯性矩阵的非对角线元素和科里奥利耦合项（如 J2 的运动影响 J3 的负载）</li>
+  <li><strong>首版参数为固定经验值</strong>：当前 $b, k_q, k_{\dot{q}}, k_{\ddot{q}}$ 为手工设定（在 <code>init_virtual_ur10.m</code> 中硬编码），未经过系统性的最小二乘拟合</li>
+  <li><strong>无分工况辨识</strong>：同一组参数用于所有工况（静止、低速、高速、重载），导致在某些极端工况下误差显著增大</li>
+  <li><strong>数值加速度噪声</strong>：$\ddot{q}$ 通过对离散 $\dot{q}$ 做一阶差分获得，放大了测量噪声。对于高频运动，加速度估计的噪声可能掩盖真实的动力学信号</li>
+  <li><strong>数据依赖</strong>：CSV 文件路径 <code>test/data/05_10_173354/session_data.csv</code> 在当前代码库中不存在（可能为外部数据），批处理管道在实际运行前需确保数据目录路径正确</li>
+</ul>
+
+<h3 id="innovation-future">4.4 未来可改进方向</h3>
+
+<ul>
+  <li>以 <code>summary.csv</code> 的 RMSE 为目标函数，对 $(b, k_q, k_{\dot{q}}, k_{\ddot{q}})$ 进行梯度下降或最小二乘拟合</li>
+  <li>分工况拟合：分别用静止段（$\dot{q} \approx 0$）、匀速段（$\ddot{q} \approx 0$）、加速段的数据独立拟合，建立工况相关的参数表</li>
+  <li>将线性模型替换为解耦的 Sigmoid 摩擦 + 对角惯性模型（保持每个关节独立但增加摩擦非线性），在复杂度和精度之间取得更好的平衡</li>
+  <li>引入低通滤波或卡尔曼滤波来改进加速度估计，减少数值微分噪声</li>
+  <li>添加统计检验（如残差自相关性检验），判断模型是否系统性地遗漏了某些动力学效应</li>
+</ul>
+
+  </div>
+  <footer class="page-footer">
+    <a href="../%E9%80%86%E5%8A%A8%E5%8A%9B%E5%AD%A6/index.html">← 上一模块：逆动力学</a>
+    <a href="../README.html">返回首页</a>
+  </footer>
+</main>
+
+  <script>
+(function(){'use strict';
+var sidebar=document.getElementById('sidebar');
+var toggleBtn=document.getElementById('sidebarToggle');
+if(toggleBtn&&sidebar){toggleBtn.addEventListener('click',function(e){e.stopPropagation();sidebar.classList.toggle('open');});document.addEventListener('click',function(e){if(!sidebar.contains(e.target)&&e.target!==toggleBtn){sidebar.classList.remove('open');}});}
+var tocContainer=document.getElementById('toc');
+var mainContent=document.querySelector('.main-content');
+if(tocContainer&&mainContent){var headings=mainContent.querySelectorAll('h2,h3');if(headings.length>1){var tocTitle=document.createElement('h4');tocTitle.textContent='目录';tocContainer.appendChild(tocTitle);headings.forEach(function(h,i){var id=h.id||('section-'+i);h.id=id;var link=document.createElement('a');link.href='#'+id;link.textContent=h.textContent;link.className=h.tagName==='H3'?'toc-h3':'';tocContainer.appendChild(link);});var observer=new IntersectionObserver(function(entries){entries.forEach(function(entry){var id=entry.target.id;var tocLink=tocContainer.querySelector('a[href="#'+id+'"]');if(tocLink){if(entry.isIntersecting){tocContainer.querySelectorAll('a.visible').forEach(function(a){a.classList.remove('visible');});tocLink.classList.add('visible');}}});},{rootMargin:'-80px 0px -70% 0px',threshold:0});headings.forEach(function(h){observer.observe(h);});}}
+var currentPage=window.location.pathname.split('/').filter(Boolean).pop()||'';
+document.querySelectorAll('.nav-list li a').forEach(function(a){var href=a.getAttribute('href')||'';if(href.includes(currentPage)&&currentPage!==''){a.parentElement.classList.add('active');}});
+document.querySelectorAll('a[href^="http"]').forEach(function(a){a.setAttribute('target','_blank');a.setAttribute('rel','noopener noreferrer');});
+})();
+  </script>
+</body>
+</html>

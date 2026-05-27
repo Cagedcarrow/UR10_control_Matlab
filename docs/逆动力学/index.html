@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>逆动力学 — UR10 技术文档</title>
+  <style>
+:root {
+  --bg-primary: #0d1117; --bg-secondary: #161b22; --bg-card: #1c2333;
+  --bg-code: #0d1117; --text-primary: #e6edf3; --text-secondary: #8b949e;
+  --text-muted: #6e7681; --accent: #58a6ff; --accent-green: #3fb950;
+  --accent-orange: #d29922; --accent-purple: #a371f7; --accent-red: #f85149;
+  --border: #30363d; --shadow: 0 2px 8px rgba(0,0,0,0.4); --radius: 8px;
+  --sidebar-width: 260px; --toc-width: 220px;
+  --font-mono: 'JetBrains Mono','Fira Code','Cascadia Code','Consolas',monospace;
+  --font-sans: -apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans SC',sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; font-size: 15px; }
+body { font-family: var(--font-sans); background: var(--bg-primary); color: var(--text-primary); line-height: 1.7; min-height: 100vh; }
+.sidebar { position: fixed; top: 0; left: 0; width: var(--sidebar-width); height: 100vh; background: var(--bg-secondary); border-right: 1px solid var(--border); overflow-y: auto; z-index: 100; transition: transform 0.3s ease; padding-bottom: 2rem; }
+.sidebar-header { padding: 1.5rem 1.2rem 1rem; border-bottom: 1px solid var(--border); margin-bottom: 0.5rem; }
+.sidebar-header h2 { font-size: 1.15rem; color: var(--accent); letter-spacing: 0.5px; }
+.sidebar-header .subtitle { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem; }
+.nav-list { list-style: none; padding: 0 0.5rem; }
+.nav-list li { margin: 0; }
+.nav-list li a { display: block; padding: 0.45rem 0.8rem; color: var(--text-secondary); text-decoration: none; border-radius: 6px; font-size: 0.88rem; transition: background 0.15s, color 0.15s; }
+.nav-list li a:hover { background: rgba(88,166,255,0.08); color: var(--text-primary); }
+.nav-list li.active a, .nav-list li.active a:hover { background: rgba(88,166,255,0.15); color: var(--accent); font-weight: 600; }
+.nav-section { padding: 0.6rem 0.8rem 0.2rem; font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); letter-spacing: 1px; font-weight: 700; }
+.content { margin-left: var(--sidebar-width); padding: 2rem 3rem; max-width: calc(100% - var(--sidebar-width) - var(--toc-width)); min-height: 100vh; }
+.main-content { max-width: 900px; }
+.sidebar-toggle { display: none; position: fixed; top: 1rem; left: 1rem; z-index: 200; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem 0.7rem; cursor: pointer; font-size: 1.2rem; }
+.toc { position: fixed; right: 1.5rem; top: 2rem; width: var(--toc-width); max-height: calc(100vh - 4rem); overflow-y: auto; font-size: 0.8rem; border-left: 1px solid var(--border); padding-left: 1rem; }
+.toc h4 { color: var(--text-secondary); margin-bottom: 0.5rem; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.5px; }
+.toc a { display: block; color: var(--text-muted); text-decoration: none; padding: 0.15rem 0; transition: color 0.15s; }
+.toc a:hover, .toc a.visible { color: var(--accent); }
+.toc a.toc-h3 { padding-left: 0.75rem; font-size: 0.78rem; }
+h1 { font-size: 2rem; margin-bottom: 0.5rem; color: var(--text-primary); border-bottom: 2px solid var(--border); padding-bottom: 0.5rem; }
+h2 { font-size: 1.5rem; margin: 2.5rem 0 1rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+h3 { font-size: 1.2rem; margin: 1.8rem 0 0.8rem; color: var(--text-primary); }
+h4 { font-size: 1rem; margin: 1.2rem 0 0.5rem; color: var(--text-secondary); }
+p { margin: 0.8rem 0; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+strong { color: var(--text-primary); }
+ul, ol { margin: 0.5rem 0 0.5rem 1.5rem; }
+li { margin: 0.25rem 0; }
+code { font-family: var(--font-mono); font-size: 0.88em; background: var(--bg-code); padding: 0.15em 0.4em; border-radius: 4px; border: 1px solid var(--border); }
+pre { background: var(--bg-code); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.2rem; overflow-x: auto; margin: 1rem 0; font-size: 0.82rem; line-height: 1.55; }
+pre code { background: none; border: none; padding: 0; font-size: inherit; }
+table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.88rem; }
+thead { background: var(--bg-card); }
+th { text-align: left; padding: 0.6rem 0.8rem; font-weight: 600; color: var(--accent); border-bottom: 2px solid var(--border); position: sticky; top: 0; }
+td { padding: 0.5rem 0.8rem; border-bottom: 1px solid var(--border); }
+tr:hover td { background: rgba(88,166,255,0.04); }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.2rem; margin: 1.5rem 0; }
+.card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; transition: border-color 0.2s, transform 0.15s; text-decoration: none; color: var(--text-primary); display: block; }
+.card:hover { border-color: var(--accent); transform: translateY(-2px); text-decoration: none; }
+.card h3 { color: var(--accent); margin: 0 0 0.5rem; font-size: 1.1rem; }
+.card p { color: var(--text-secondary); font-size: 0.88rem; margin: 0; }
+.card .io { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.5rem; font-family: var(--font-mono); }
+.notice { border-left: 4px solid var(--accent); background: rgba(88,166,255,0.06); padding: 0.8rem 1rem; margin: 1rem 0; border-radius: 0 var(--radius) var(--radius) 0; font-size: 0.9rem; }
+.notice.warn { border-color: var(--accent-orange); background: rgba(210,153,34,0.06); }
+.notice.info { border-color: var(--accent-green); background: rgba(63,185,80,0.06); }
+.mermaid { text-align: center; margin: 1.5rem 0; overflow-x: auto; background: transparent; }
+.mermaid svg { max-width: 100%; height: auto; }
+mjx-container { overflow-x: auto; }
+.page-footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--border); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
+.page-footer a { color: var(--accent); text-decoration: none; font-size: 0.9rem; padding: 0.4rem 0; }
+.page-footer a:hover { text-decoration: underline; }
+.tag { display: inline-block; padding: 0.15rem 0.5rem; background: rgba(88,166,255,0.12); color: var(--accent); border-radius: 12px; font-size: 0.75rem; margin: 0.1rem; }
+.tag.green { background: rgba(63,185,80,0.12); color: var(--accent-green); }
+.tag.orange { background: rgba(210,153,34,0.12); color: var(--accent-orange); }
+.tag.purple { background: rgba(163,113,247,0.12); color: var(--accent-purple); }
+.hero { text-align: center; padding: 2rem 0 1.5rem; }
+.hero h1 { font-size: 2.4rem; border: none; margin-bottom: 0.5rem; }
+.hero .subtitle { color: var(--text-secondary); font-size: 1.05rem; max-width: 600px; margin: 0 auto; }
+@media (max-width: 1200px) { .toc { display: none; } .content { max-width: calc(100% - var(--sidebar-width)); } }
+@media (max-width: 768px) { :root { font-size: 14px; } .sidebar { transform: translateX(-100%); } .sidebar.open { transform: translateX(0); } .sidebar-toggle { display: block; } .content { margin-left: 0; max-width: 100%; padding: 1.2rem; } .card-grid { grid-template-columns: 1fr; } .page-footer { flex-direction: column; } }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>mermaid.initialize({startOnLoad:true, theme:'dark', themeVariables:{primaryColor:'#1c2333',primaryTextColor:'#e6edf3',primaryBorderColor:'#30363d',lineColor:'#58a6ff',secondaryColor:'#161b22',tertiaryColor:'#0d1117'}});</script>
+  <script>MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']]},svg:{fontCache:'global'}};</script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script>document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});</script>
+</head>
+<body>
+
+<nav id="sidebar" class="sidebar">
+  <div class="sidebar-header">
+    <h2>UR10 技术文档</h2>
+    <div class="subtitle">机械臂运动学与动力学</div>
+  </div>
+  <ul class="nav-list">
+    <li><a href="../README.html">项目概览</a></li>
+    <li class="nav-section">运动学</li>
+    <li><a href="../%E6%AD%A3%E8%BF%90%E5%8A%A8%E5%AD%A6/index.html">正运动学</a></li>
+    <li><a href="../%E9%80%86%E8%BF%90%E5%8A%A8%E5%AD%A6/index.html">逆运动学</a></li>
+    <li class="nav-section">动力学</li>
+    <li class="active"><a href="index.html">逆动力学</a></li>
+    <li class="nav-section">辨识</li>
+    <li><a href="../%E7%94%B5%E6%B5%81%E6%A8%A1%E5%9E%8B%E8%BE%A8%E8%AF%86/index.html">电流模型辨识</a></li>
+  </ul>
+</nav>
+
+<main id="content" class="content">
+  <button id="sidebarToggle" class="sidebar-toggle">☰</button>
+  <div id="toc" class="toc"></div>
+  <div class="main-content">
+
+<h1>逆动力学 (Inverse Dynamics)</h1>
+
+<div class="hero">
+  <p class="subtitle">给定关节位置 <strong>q</strong>、速度 <strong>dq</strong>、加速度 <strong>ddq</strong>，计算维持该运动所需的关节力矩 <strong>τ</strong></p>
+</div>
+
+<h2 id="overview">1. 整体介绍</h2>
+
+<h3 id="overview-purpose">1.1 在机器人系统中的作用</h3>
+
+<p>逆动力学是机器人<strong>力矩控制的基础</strong>。它将期望的运动轨迹（关节位置/速度/加速度）映射为所需的驱动力矩，在以下场景中至关重要：</p>
+
+<ul>
+  <li><strong>前馈力矩控制</strong>：在轨迹跟踪控制器中，将计算力矩作为前馈项，显著提高跟踪精度</li>
+  <li><strong>重力补偿</strong>：在拖动示教/零力控制中，补偿重力使机械臂感觉"失重"</li>
+  <li><strong>动力学参数辨识</strong>：回归矩阵形式支持在线辨识负载参数</li>
+  <li><strong>碰撞检测</strong>：$\tau_{\text{measured}} - \tau_{\text{computed}}$ 的残差可以检测外部碰撞</li>
+  <li><strong>能耗分析与优化</strong>：精确的力矩预测用于轨迹能耗评估</li>
+</ul>
+
+<h3 id="overview-io">1.2 输入与输出</h3>
+
+<table>
+<tr><th>符号</th><th>名称</th><th>维度</th><th>单位</th><th>说明</th></tr>
+<tr><td>$q$</td><td>关节位置</td><td>$6 \times 1$</td><td>rad</td><td>6 个旋转关节的角度</td></tr>
+<tr><td>$\dot{q}$</td><td>关节速度</td><td>$6 \times 1$</td><td>rad/s</td><td>角速度</td></tr>
+<tr><td>$\ddot{q}$</td><td>关节加速度</td><td>$6 \times 1$</td><td>rad/s²</td><td>角加速度</td></tr>
+<tr><td>$\tau$</td><td>关节力矩</td><td>$6 \times 1$</td><td>Nm</td><td>维持运动所需的总力矩</td></tr>
+</table>
+
+<p>求解器还能单独返回：</p>
+<ul>
+  <li>$H(q) \in \mathbb{R}^{6\times6}$ — 惯性矩阵（对称正定）</li>
+  <li>$C(q,\dot{q})\dot{q} \in \mathbb{R}^6$ — 科里奥利/离心力向量</li>
+  <li>$g(q) \in \mathbb{R}^6$ — 重力向量</li>
+  <li>$f(\dot{q}) \in \mathbb{R}^6$ — 摩擦力向量</li>
+</ul>
+
+<h3 id="overview-math">1.3 数学模型</h3>
+
+<p>标准刚体逆动力学方程：</p>
+
+$$\tau = H(q)\ddot{q} + C(q,\dot{q})\dot{q} + g(q) + f(\dot{q})$$
+
+<p>本项目的<strong>核心创新</strong>是将模型表述为<strong>电流级</strong>（而非传统的力矩级），并采用<strong>双寄存器架构</strong>：</p>
+
+<h4>完整力矩公式</h4>
+
+$$\boxed{\tau = K \cdot i_{\text{arm}}(q, \dot{q}, \ddot{q}) + K \cdot i_{\text{friction}}(\dot{q}) + Y_L(q, \dot{q}, \ddot{q}) \cdot \pi_{\text{load}}}$$
+
+<p>其中：</p>
+<ul>
+  <li>$K = \text{diag}(K_1, \dots, K_6)$ — 电机增益矩阵 (Nm/A)，将电流转换为力矩</li>
+  <li>$i_{\text{arm}}$ — 机械臂本体的电流贡献（惯性 + 科里奥利 + 重力）</li>
+  <li>$i_{\text{friction}}$ — Sigmoid 非线性摩擦电流</li>
+  <li>$Y_L$ — 负载回归矩阵 ($6 \times 19$)</li>
+  <li>$\pi_{\text{load}}$ — 19 维负载动力学系数</li>
+</ul>
+
+<h3 id="overview-arch">1.4 整体架构</h3>
+
+<div class="mermaid">
+graph TB
+    subgraph Base["抽象层 (pluginlib 接口)"]
+        ABS["InverseDynamicsSolver<br/><br/>6 个纯虚方法:<br/>getInertiaMatrix(q)<br/>getCoriolisVector(q,dq)<br/>getGravityVector(q)<br/>getFrictionVector(dq)<br/>getDynamicParameters(q,dq)<br/>getTorques(q,dq,ddq)"]
+    end
+    subgraph KDL["KDL 实现 (通用仿真)"]
+        KDL_H["InverseDynamicsSolverKDL<br/><br/>KDL::ChainDynParam<br/>URDF → KDL Tree → KDL Chain<br/>JntToMass / JntToCoriolis / JntToGravity<br/>❌ 无摩擦模型"]
+    end
+    subgraph UR10["UR10 高精度实现"]
+        UR10_H["InverseDynamicsSolverUR10<br/><br/>8 个 MATLAB 生成函数<br/>Sigmoid 摩擦模型 (30 参数)<br/>电机增益矩阵 K<br/>19 维负载补偿"]
+    end
+    subgraph Gen["MATLAB 生成代码 (8 个 C++ 函数)"]
+        G1["getInertiaCurrents<br/>q → B(6×6)"]
+        G2["getCoriolisCurrents<br/>q,dq → C(6)"]
+        G3["getGravityCurrents<br/>q → g(6)"]
+        G4["getCurrents<br/>q,dq,ddq → i(6)"]
+        G5["getPayloadInertiaRegressionMatrix<br/>q → BL(6×6)"]
+        G6["getPayloadCoriolisRegressionMatrix<br/>q,dq → YCL(6×19)"]
+        G7["getPayloadGravityRegressionMatrix<br/>q → YGL(6×19)"]
+        G8["getPayloadRegressionMatrix<br/>q,dq,ddq → YL(6×19)"]
+    end
+    ABS --> KDL_H
+    ABS --> UR10_H
+    Gen --> UR10_H
+</div>
+
+<h2 id="source-analysis">2. 源码分析</h2>
+
+<h3 id="source-structure">2.1 包结构</h3>
+
+<pre><code class="language-text">capsule-8515919/code/
+├── inverse_dynamics_solver/              # [抽象层] 定义插件接口
+│   ├── include/.../inverse_dynamics_solver.h    ★ 抽象基类 + 负载参数管理
+│   └── config/payload_parameters.yaml         零负载默认参数
+├── kdl_inverse_dynamics_solver/          # [KDL 实现] 通用仿真求解器
+│   ├── include/.../kdl_inverse_dynamics_solver.h
+│   ├── src/kdl_inverse_dynamics_solver.cpp      ★ KDL::ChainDynParam 调用
+│   ├── kdl_inverse_dynamics_solver.xml         pluginlib 注册
+│   └── test/test_kdl_inverse_dynamics_solver.cpp  固定位姿验证
+├── ur10_inverse_dynamics_solver/         # [UR10 实现] 高精度专用求解器
+│   ├── include/.../ur10_inverse_dynamics_solver.h  ★ 电机增益 + 19维负载
+│   ├── src/ur10_inverse_dynamics_solver.cpp     ★ 电流→力矩转换 + Sigmoid 摩擦
+│   ├── include/.../getInertiaCurrents.h        MATLAB 生成 (8 个)
+│   ├── ur10_inverse_dynamics_solver.xml         pluginlib 注册
+│   └── test/test_ur10_inverse_dynamics_solver.cpp  rosbag 轨迹验证
+└── ros_extensions_utilities/             # [工具库] ROS2 辅助函数
+    └── include/.../ros_extensions_utils.h      参数读取 / 链名称提取</code></pre>
+
+<h3 id="source-base">2.2 抽象基类 (InverseDynamicsSolver)</h3>
+
+<p><strong>命名空间</strong>: <code>inverse_dynamics_solver</code></p>
+
+<table>
+<tr><th>方法</th><th>输入</th><th>输出</th><th>说明</th></tr>
+<tr><td><code>initialize(node, link_names)</code></td><td>ROS2 节点 + 链名称</td><td>void</td><td>从参数服务器加载负载参数 (mass, COM[3], inertia[6]) 并验证</td></tr>
+<tr><td><code>getInertiaMatrix(q)</code></td><td>$q$</td><td>$H(q) \in \mathbb{R}^{6\times6}$</td><td>纯虚函数。惯性矩阵，对称正定</td></tr>
+<tr><td><code>getCoriolisVector(q, dq)</code></td><td>$q, \dot{q}$</td><td>$C\dot{q} \in \mathbb{R}^6$</td><td>纯虚函数。科里奥利/离心力向量</td></tr>
+<tr><td><code>getGravityVector(q)</code></td><td>$q$</td><td>$g(q) \in \mathbb{R}^6$</td><td>纯虚函数。重力向量</td></tr>
+<tr><td><code>getFrictionVector(dq)</code></td><td>$\dot{q}$</td><td>$f \in \mathbb{R}^6$</td><td>纯虚函数。摩擦力向量</td></tr>
+<tr><td><code>getDynamicParameters(q, dq)</code></td><td>$q, \dot{q}$</td><td>$(H, C\dot{q}, g)$</td><td>一次返回三元组</td></tr>
+<tr><td><code>getTorques(q, dq, ddq)</code></td><td>$q, \dot{q}, \ddot{q}$</td><td>$\tau$</td><td>默认实现: $H\ddot{q} + C\dot{q} + g$</td></tr>
+</table>
+
+<p><strong>负载参数管理</strong>（非虚函数，在基类中实现）：</p>
+
+<table>
+<tr><th>方法</th><th>操作</th></tr>
+<tr><td><code>getPayloadMass() / setPayloadMass(double)</code></td><td>负载质量 [kg]，必须非负</td></tr>
+<tr><td><code>getPayloadCenterOfMass() / setPayloadCenterOfMass(array)</code></td><td>质心 COM [m]，3 元素</td></tr>
+<tr><td><code>getPayloadInertia() / setPayloadInertia(array)</code></td><td>惯性张量 $[I_{xx},I_{xy},I_{xz},I_{yy},I_{yz},I_{zz}]$ [kg·m²]，6 元素</td></tr>
+</table>
+
+<p>内部存储: <code>inertial_parameters_</code> 数组 (10 元素): <code>[mass, com_x, com_y, com_z, Ixx, Ixy, Ixz, Iyy, Iyz, Izz]</code></p>
+
+<h3 id="source-kdl">2.3 KDL 求解器</h3>
+
+<p><strong>命名空间</strong>: <code>inverse_dynamics_solver</code>，类: <code>InverseDynamicsSolverKDL</code></p>
+
+<pre><code class="language-cpp">// 初始化流程
+initialize(node, link_names):
+    1. 调用基类 initialize() → 加载负载参数
+    2. RobotModelLoader 从 /robot_description 加载 URDF
+    3. kdl_parser::treeFromUrdfModel → KDL::Tree
+    4. tree.getChain(chain_start, chain_end) → KDL::Chain
+    5. 创建 KDL::ChainDynParam(chain, gravity_vector=[0,0,-9.81])
+
+// 动力学计算
+getInertiaMatrix: solver->JntToMass(q_kdl, H_kdl) → Eigen::Map → 返回 H
+getCoriolisVector: solver->JntToCoriolis(q, qd, C) → 返回 C
+getGravityVector:  solver->JntToGravity(q, g) → 返回 g
+getFrictionVector: return Eigen::VectorXd::Zero(6)  ← KDL 无摩擦模型</code></pre>
+
+<div class="notice warn">
+  <strong>KDL 的限制</strong>: KDL 的 <code>ChainDynParam</code> 不提供摩擦力计算，<code>getFrictionVector</code> 始终返回零向量。因此 KDL 求解器<strong>仅适用于仿真环境</strong>中的理想刚体动力学，不适合真实 UR10 的前馈控制。
+</div>
+
+<h3 id="source-ur10">2.4 UR10 高精度求解器</h3>
+
+<p><strong>命名空间</strong>: <code>ur10</code>，类: <code>InverseDynamicsSolverUR10</code></p>
+
+<h4>电机增益常量</h4>
+<table>
+<tr><th>关节</th><th>符号</th><th>值 (Nm/A)</th></tr>
+<tr><td>J1 - shoulder_pan</td><td>$K_1$</td><td>13.5841</td></tr>
+<tr><td>J2 - shoulder_lift</td><td>$K_2$</td><td>14.2959</td></tr>
+<tr><td>J3 - elbow</td><td>$K_3$</td><td>11.3716</td></tr>
+<tr><td>J4 - wrist_1</td><td>$K_4$</td><td>11.2408</td></tr>
+<tr><td>J5 - wrist_2</td><td>$K_5$</td><td>11.7681</td></tr>
+<tr><td>J6 - wrist_3</td><td>$K_6$</td><td>11.7682</td></tr>
+</table>
+
+<h4>核心计算方法实现</h4>
+
+<pre><code class="language-cpp">// 1. 惯性矩阵: H = K * B_arm + B_load
+Eigen::MatrixXd getInertiaMatrix(const Vector6d& q) const {
+    getInertiaCurrents(q, B);                             // arm: B(6×6) 电流矩阵
+    getPayloadInertiaRegressionMatrix(q, inertial, BL);   // payload: BL(6×6)
+    return K * B + BL;
+}
+
+// 2. 科里奥利向量: C = K * c_arm + YCL * π_load
+Eigen::VectorXd getCoriolisVector(q, qd) const {
+    getCoriolisCurrents(q, qd, coriolis_i);               // arm: 电流(6)
+    getPayloadCoriolisRegressionMatrix(q, qd, YCL);       // payload: YCL(6×19)
+    return K * coriolis_i + YCL * dynamicCoefficients();
+}
+
+// 3. 重力向量: g = K * g_arm + YGL * π_load
+Eigen::VectorXd getGravityVector(q) const {
+    getGravityCurrents(q, gravity_i);                     // arm: 电流(6)
+    getPayloadGravityRegressionMatrix(q, YGL);            // payload: YGL(6×19)
+    return K * gravity_i + YGL * dynamicCoefficients();
+}
+
+// 4. 摩擦力: f = K * i_friction(qd)
+Eigen::VectorXd getFrictionVector(qd) const {
+    return K * getFrictionCurrents_(qd);
+}
+
+// 5. 总力矩 (重写基类): τ = K*i_arm + K*i_friction + YL*π_load
+Eigen::VectorXd getTorques(q, qd, qdd) const {
+    getCurrents(q, qd, qdd, currents);                    // arm: 总电流(6)
+    getPayloadRegressionMatrix(q, qd, qdd, YL);           // payload: YL(6×19)
+    return K * currents + getFrictionVector(qd) + YL * dynamicCoefficients();
+}</code></pre>
+
+<h4>Sigmoid 非线性摩擦模型</h4>
+
+<p>每个关节 $j \in \{1,\dots,6\}$ 的摩擦电流：</p>
+
+$$i_{\text{friction},j}(\dot{q}_j) = f_{v,j} \cdot \dot{q}_j + f_{o,j} + \frac{f_{c,j}}{1 + e^{-\alpha_j(\dot{q}_j + n_j)}}$$
+
+<table>
+<tr><th>参数</th><th>含义</th><th>J1</th><th>J2</th><th>J3</th><th>J4</th><th>J5</th><th>J6</th></tr>
+<tr><td>$f_v$</td><td>粘性摩擦</td><td>1.064</td><td>0.994</td><td>0.680</td><td>0.316</td><td>0.224</td><td>0.236</td></tr>
+<tr><td>$f_o$</td><td>偏移</td><td>−1.007</td><td>0.956</td><td>−0.812</td><td>−0.177</td><td>−0.192</td><td>−0.245</td></tr>
+<tr><td>$f_c$</td><td>库仑幅值</td><td>2.051</td><td>−2.402</td><td>1.648</td><td>0.469</td><td>0.476</td><td>0.598</td></tr>
+<tr><td>$\alpha$</td><td>斜率</td><td>7.947</td><td>−59.954</td><td>19.825</td><td>134.898</td><td>331.442</td><td>459.193</td></tr>
+<tr><td>$n$</td><td>偏移</td><td>−0.0185</td><td>−0.0020</td><td>−0.0053</td><td>−0.0186</td><td>−0.0118</td><td>−0.0130</td></tr>
+</table>
+
+<div class="notice info">
+  <strong>Sigmoid 摩擦 vs 经典库仑+粘性</strong>: 经典库仑摩擦在零速处存在不连续性 ($\text{sign}(\dot{q})$)，在数值仿真中引起抖动。Sigmoid 通过平滑 S 形曲线 ($\frac{1}{1+e^{-\alpha(\dot{q}+n)}}$) 逼近符号函数，消除了不连续性，使得 Simulink 仿真和实时控制更加稳定。参数 $\alpha$ 控制过渡的陡峭程度，$n$ 调整零速交叉点。
+</div>
+
+<h4>19 维负载动力学系数</h4>
+
+<p>从 10 个标准惯性参数（质量 $m$、质心 $c = (c_x,c_y,c_z)$、惯性张量 $\mathbf{I}$）派生出的 19 个扩展参数：</p>
+
+$$\pi_{\text{load}} = [m,\; m c_x,\; m c_y,\; m c_z,\; I_{xx},\; m c_y^2,\; m c_z^2,\; I_{xy},\; m c_x c_y,\; I_{xz},\; m c_x c_z,\; I_{yy},\; m c_x^2,\; m c_z^2,\; I_{yz},\; m c_y c_z,\; I_{zz},\; m c_x^2,\; m c_y^2]^T$$
+
+<p>这 19 维参数是对完整负载动力学参数空间的最小参数化，包含了质量与惯性矩的所有线性独立组合。回归矩阵 $Y_L \in \mathbb{R}^{6 \times 19}$ 将参数向量线性地映射到关节力矩。</p>
+
+<h3 id="source-matlab-gen">2.5 MATLAB 生成函数</h3>
+
+<p>8 个函数均由 <strong>MATLAB Coder 5.6</strong> 从 <strong>Symbolic Math Toolbox 9.3</strong> 的符号表达式自动生成，全部位于 <code>ur10</code> 命名空间。</p>
+
+<table>
+<tr><th>函数</th><th>源文件行数</th><th>输入</th><th>输出</th><th>说明</th></tr>
+<tr><td><code>getInertiaCurrents</code></td><td>~1250 行</td><td>$q$ (6)</td><td>$B$ (36)</td><td>惯性电流矩阵，$\cos$/$\sin$ 展开式</td></tr>
+<tr><td><code>getCoriolisCurrents</code></td><td>~3735 行</td><td>$q, \dot{q}$ (12)</td><td>$c$ (6)</td><td>科里奥利电流向量，最大的生成文件</td></tr>
+<tr><td><code>getGravityCurrents</code></td><td>~194 行</td><td>$q$ (6)</td><td>$g$ (6)</td><td>重力电流向量，最小的生成文件</td></tr>
+<tr><td><code>getCurrents</code></td><td>~4961 行</td><td>$q, \dot{q}, \ddot{q}$ (18)</td><td>$i$ (6)</td><td>总电流（线性部分，不含摩擦）</td></tr>
+<tr><td><code>getPayloadRegressionMatrix</code></td><td>~8194 行</td><td>$q, \dot{q}, \ddot{q}$ (18)</td><td>$Y_L$ (114)</td><td>总负载回归矩阵 $6 \times 19$</td></tr>
+<tr><td><code>getPayloadInertiaRegressionMatrix</code></td><td>~1189 行</td><td>$q$ (6) + 惯性参数 (10)</td><td>$B_L$ (36)</td><td>惯性负载力矩矩阵</td></tr>
+<tr><td><code>getPayloadCoriolisRegressionMatrix</code></td><td>~6411 行</td><td>$q, \dot{q}$ (12)</td><td>$Y_{CL}$ (114)</td><td>科里奥利负载回归</td></tr>
+<tr><td><code>getPayloadGravityRegressionMatrix</code></td><td>~151 行</td><td>$q$ (6)</td><td>$Y_{GL}$ (114)</td><td>重力负载回归，最小生成文件</td></tr>
+</table>
+
+<div class="notice">
+  <strong>生成代码特征</strong>: 所有函数仅使用 <code>std::cos</code>、<code>std::sin</code> 和基本算术运算，不依赖任何外部线性代数库。这是因为 MATLAB Coder 将符号表达式完全展开为原生的 C 代码，避免了 Eigen 等库的运行时开销。代价是生成了大量展开代码（合计约 25,000 行）。<br><br>
+  <strong>代码生成过程（推测）</strong>: Symbolic Math Toolbox 对 UR10 的 Lagrange 动力学方程进行符号推导 → 得到 $H(q)、C(q,\dot{q})、g(q)$ 的符号表达式 → MATLAB Coder 将符号表达式转换为 C++ 源代码。
+</div>
+
+<h2 id="dependencies">3. 依赖分析</h2>
+
+<h3 id="deps-libs">3.1 核心库</h3>
+
+<table>
+<tr><th>库</th><th>类型</th><th>用途</th><th>替代方案</th></tr>
+<tr><td><strong>Eigen3</strong></td><td>C++ 线性代数</td><td>所有矩阵/向量运算：<code>Matrix6d</code>, <code>Vector6d</code>, <code>.asDiagonal()</code></td><td>Armadillo, Blaze (性能相近)</td></tr>
+<tr><td><strong>Orocos KDL</strong></td><td>C++ 运动学/动力学</td><td><code>KDL::ChainDynParam</code> 计算通用机器人动力学</td><td>Pinocchio (更快，支持自动微分), RBDL</td></tr>
+<tr><td><strong>MoveIt2</strong></td><td>ROS2 运动规划</td><td><code>RobotModelLoader</code> 加载 URDF；<code>JointModelGroup</code> 提取运动链</td><td>直接使用 kdl_parser (仅 KDL 功能)</td></tr>
+<tr><td><strong>pluginlib</strong></td><td>ROS2 插件</td><td>运行时多态加载 KDL 或 UR10 求解器</td><td>手动工厂模式（失去 ROS2 集成）</td></tr>
+<tr><td><strong>rclcpp</strong></td><td>ROS2 客户端库</td><td>参数服务器读取 (mass, COM, inertia)</td><td>—</td></tr>
+<tr><td><strong>MATLAB Symbolic Toolbox + Coder</strong></td><td>代码生成</td><td>符号推导 → C++ 代码自动生成（8 个文件，~25K 行）</td><td>手动编写（错误率高且维护困难）</td></tr>
+</table>
+
+<h3 id="deps-graph">3.2 包依赖图</h3>
+
+<div class="mermaid">
+graph TB
+    subgraph ROS2_DEPS["ROS2 系统依赖"]
+        RCLCPP["rclcpp"]
+        PLUGINLIB["pluginlib"]
+        MOVEIT["moveit_core"]
+    end
+    subgraph project["项目包"]
+        UTILS["ros_extensions_utilities<br/>参数读取 + 链提取"]
+        BASE["inverse_dynamics_solver<br/>抽象基类 + 负载管理"]
+        KDL_PKG["kdl_inverse_dynamics_solver<br/>KDL 通用求解器"]
+        UR10_PKG["ur10_inverse_dynamics_solver<br/>UR10 高精度求解器"]
+    end
+    subgraph external["外部运行时"]
+        UR_DESC["ur_description<br/>UR10 URDF"]
+        UR_MOVEIT["ur_moveit_config<br/>SRDF 语义描述"]
+    end
+    RCLCPP --> UTILS
+    RCLCPP --> BASE
+    MOVEIT --> UTILS
+    MOVEIT --> KDL_PKG
+    PLUGINLIB --> BASE
+    UTILS --> BASE
+    BASE --> KDL_PKG
+    BASE --> UR10_PKG
+    UR_DESC --> KDL_PKG
+    UR_MOVEIT --> KDL_PKG
+</div>
+
+<h2 id="innovation">4. 创新点分析</h2>
+
+<h3 id="innovation-compare">4.1 与标准方法的对比</h3>
+
+<table>
+<tr><th>方面</th><th>标准方法 (RBDL/Pinocchio)</th><th>本项目方法 (电流级回归 + 双寄存器)</th></tr>
+<tr><td>建模层级</td><td>力矩级：直接计算 $\tau$</td><td><strong>电流级</strong>：$i = f(q,\dot{q},\ddot{q})$，然后 $\tau = K \cdot i$</td></tr>
+<tr><td>参数来源</td><td>CAD 模型 → 惯性参数理论值</td><td><strong>MATLAB 系统辨识</strong> → 实验数据拟合参数</td></tr>
+<tr><td>摩擦模型</td><td>通常仅粘性 + 库仑（含符号函数不连续）</td><td><strong>Sigmoid 平滑摩擦</strong>（30 参数，避免数值抖动）</td></tr>
+<tr><td>负载处理</td><td>修改 URDF 后重新计算</td><td><strong>线性回归矩阵</strong>：$\tau_{\text{load}} = Y_L(q,\dot{q},\ddot{q}) \cdot \pi$，支持在线辨识</td></tr>
+<tr><td>可扩展性</td><td>新机器人 = 新 URDF + 重新编译</td><td>新机器人 = MATLAB 重新辨识 + 重新生成 8 个文件</td></tr>
+</table>
+
+<h3 id="innovation-points">4.2 工程亮点</h3>
+
+<ul>
+  <li><strong>电流级建模</strong>：在电机电流层面而非力矩层面建模，直接匹配 UR10 驱动的电流反馈环。这使得模型可以绕过力矩传感器的噪声和延迟，直接与底层电机控制回路对接</li>
+  <li><strong>双寄存器解耦架构</strong>：机械臂本体动力学（电流级）和负载动力学（力矩级）分离为两个独立的寄存器。机械臂本体的 8 个生成函数完全来自实验辨识（而非 CAD 理论值），负载部分通过线性回归矩阵支持任意末端工具的运行时补偿</li>
+  <li><strong>MATLAB → C++ 自动代码生成管道</strong>：Symbolic Math Toolbox 的符号推导 → MATLAB Coder 的代码生成，保证了辨识模型到运行时求解器之间的零误差传递。合计约 25,000 行的自动生成代码通过单元测试验证了数值精度（$10^{-6}$ 容差）</li>
+  <li><strong>pluginlib 多态架构</strong>：KDL 求解器（通用仿真）和 UR10 求解器（高精度真机）共享同一接口，上层应用无需修改代码即可切换求解器。这在开发和调试阶段非常实用——可以在仿真中用 KDL 快速验证，在真机上切换到 UR10 求解器</li>
+  <li><strong>19 维负载参数化</strong>：10 个标准惯性参数（$m$, COM, $\mathbf{I}$）被展开为 19 个线性独立组合，包含了所有质量/质心/惯性张量的交叉项。这使得回归矩阵 $Y_L$ 可以线性地表示负载对任意关节力矩的贡献，支持最小二乘在线辨识</li>
+</ul>
+
+<h3 id="innovation-limits">4.3 局限性</h3>
+
+<ul>
+  <li><strong>生成代码膨胀</strong>：8 个生成文件合计约 25,000 行，编译时间长。如果改用 Pinocchio 的运行时刚体算法 (ABA/RNEA)，代码量可减少 90% 以上</li>
+  <li><strong>辨识依赖</strong>：模型精度完全取决于辨识实验的质量。如果辨识数据未覆盖某些运动工况（如高速、大负载），模型在那些区域的预测会显著偏差</li>
+  <li><strong>KDL 无摩擦</strong>：KDL 求解器缺失摩擦模型，限制了其在仿真中的保真度。在摩擦占主导的低速段（如精细装配），KDL 仿真与 UR10 实际行为偏差较大</li>
+</ul>
+
+<h3 id="innovation-future">4.4 未来可改进方向</h3>
+
+<ul>
+  <li>集成 Pinocchio 替代 KDL，获得更快的计算速度和自动微分支持</li>
+  <li>分工况（静止/低速/高速）辨识多组摩擦参数，运行时根据速度范围动态插值</li>
+  <li>将 19 维负载回归扩展为支持在线递推最小二乘 (RLS) 的实时负载辨识器</li>
+  <li>添加关节柔性（谐波减速器）模型，提高力矩预测在换向瞬间的精度</li>
+</ul>
+
+  </div>
+  <footer class="page-footer">
+    <a href="../%E9%80%86%E8%BF%90%E5%8A%A8%E5%AD%A6/index.html">← 上一模块：逆运动学</a>
+    <a href="../%E7%94%B5%E6%B5%81%E6%A8%A1%E5%9E%8B%E8%BE%A8%E8%AF%86/index.html">下一模块：电流模型辨识 →</a>
+  </footer>
+</main>
+
+  <script>
+(function(){'use strict';
+var sidebar=document.getElementById('sidebar');
+var toggleBtn=document.getElementById('sidebarToggle');
+if(toggleBtn&&sidebar){toggleBtn.addEventListener('click',function(e){e.stopPropagation();sidebar.classList.toggle('open');});document.addEventListener('click',function(e){if(!sidebar.contains(e.target)&&e.target!==toggleBtn){sidebar.classList.remove('open');}});}
+var tocContainer=document.getElementById('toc');
+var mainContent=document.querySelector('.main-content');
+if(tocContainer&&mainContent){var headings=mainContent.querySelectorAll('h2,h3');if(headings.length>1){var tocTitle=document.createElement('h4');tocTitle.textContent='目录';tocContainer.appendChild(tocTitle);headings.forEach(function(h,i){var id=h.id||('section-'+i);h.id=id;var link=document.createElement('a');link.href='#'+id;link.textContent=h.textContent;link.className=h.tagName==='H3'?'toc-h3':'';tocContainer.appendChild(link);});var observer=new IntersectionObserver(function(entries){entries.forEach(function(entry){var id=entry.target.id;var tocLink=tocContainer.querySelector('a[href="#'+id+'"]');if(tocLink){if(entry.isIntersecting){tocContainer.querySelectorAll('a.visible').forEach(function(a){a.classList.remove('visible');});tocLink.classList.add('visible');}}});},{rootMargin:'-80px 0px -70% 0px',threshold:0});headings.forEach(function(h){observer.observe(h);});}}
+var currentPage=window.location.pathname.split('/').filter(Boolean).pop()||'';
+document.querySelectorAll('.nav-list li a').forEach(function(a){var href=a.getAttribute('href')||'';if(href.includes(currentPage)&&currentPage!==''){a.parentElement.classList.add('active');}});
+document.querySelectorAll('a[href^="http"]').forEach(function(a){a.setAttribute('target','_blank');a.setAttribute('rel','noopener noreferrer');});
+})();
+  </script>
+</body>
+</html>

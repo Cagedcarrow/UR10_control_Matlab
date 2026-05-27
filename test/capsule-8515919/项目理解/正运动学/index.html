@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>正运动学 — UR10 技术文档</title>
+  <style>
+/* ============================================================
+   UR10 技术文档 — 共享主题样式 (深色科技风)
+   ============================================================ */
+:root {
+  --bg-primary: #0d1117; --bg-secondary: #161b22; --bg-card: #1c2333;
+  --bg-code: #0d1117; --text-primary: #e6edf3; --text-secondary: #8b949e;
+  --text-muted: #6e7681; --accent: #58a6ff; --accent-green: #3fb950;
+  --accent-orange: #d29922; --accent-purple: #a371f7; --accent-red: #f85149;
+  --border: #30363d; --shadow: 0 2px 8px rgba(0,0,0,0.4); --radius: 8px;
+  --sidebar-width: 260px; --toc-width: 220px;
+  --font-mono: 'JetBrains Mono','Fira Code','Cascadia Code','Consolas',monospace;
+  --font-sans: -apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans SC',sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; font-size: 15px; }
+body { font-family: var(--font-sans); background: var(--bg-primary); color: var(--text-primary); line-height: 1.7; min-height: 100vh; }
+.sidebar { position: fixed; top: 0; left: 0; width: var(--sidebar-width); height: 100vh; background: var(--bg-secondary); border-right: 1px solid var(--border); overflow-y: auto; z-index: 100; transition: transform 0.3s ease; padding-bottom: 2rem; }
+.sidebar-header { padding: 1.5rem 1.2rem 1rem; border-bottom: 1px solid var(--border); margin-bottom: 0.5rem; }
+.sidebar-header h2 { font-size: 1.15rem; color: var(--accent); letter-spacing: 0.5px; }
+.sidebar-header .subtitle { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem; }
+.nav-list { list-style: none; padding: 0 0.5rem; }
+.nav-list li { margin: 0; }
+.nav-list li a { display: block; padding: 0.45rem 0.8rem; color: var(--text-secondary); text-decoration: none; border-radius: 6px; font-size: 0.88rem; transition: background 0.15s, color 0.15s; }
+.nav-list li a:hover { background: rgba(88,166,255,0.08); color: var(--text-primary); }
+.nav-list li.active a, .nav-list li.active a:hover { background: rgba(88,166,255,0.15); color: var(--accent); font-weight: 600; }
+.nav-section { padding: 0.6rem 0.8rem 0.2rem; font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); letter-spacing: 1px; font-weight: 700; }
+.content { margin-left: var(--sidebar-width); padding: 2rem 3rem; max-width: calc(100% - var(--sidebar-width) - var(--toc-width)); min-height: 100vh; }
+.main-content { max-width: 900px; }
+.sidebar-toggle { display: none; position: fixed; top: 1rem; left: 1rem; z-index: 200; background: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border); border-radius: 6px; padding: 0.5rem 0.7rem; cursor: pointer; font-size: 1.2rem; }
+.toc { position: fixed; right: 1.5rem; top: 2rem; width: var(--toc-width); max-height: calc(100vh - 4rem); overflow-y: auto; font-size: 0.8rem; border-left: 1px solid var(--border); padding-left: 1rem; }
+.toc h4 { color: var(--text-secondary); margin-bottom: 0.5rem; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.5px; }
+.toc a { display: block; color: var(--text-muted); text-decoration: none; padding: 0.15rem 0; transition: color 0.15s; }
+.toc a:hover, .toc a.visible { color: var(--accent); }
+.toc a.toc-h3 { padding-left: 0.75rem; font-size: 0.78rem; }
+h1 { font-size: 2rem; margin-bottom: 0.5rem; color: var(--text-primary); border-bottom: 2px solid var(--border); padding-bottom: 0.5rem; }
+h2 { font-size: 1.5rem; margin: 2.5rem 0 1rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+h3 { font-size: 1.2rem; margin: 1.8rem 0 0.8rem; color: var(--text-primary); }
+h4 { font-size: 1rem; margin: 1.2rem 0 0.5rem; color: var(--text-secondary); }
+p { margin: 0.8rem 0; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+strong { color: var(--text-primary); }
+ul, ol { margin: 0.5rem 0 0.5rem 1.5rem; }
+li { margin: 0.25rem 0; }
+code { font-family: var(--font-mono); font-size: 0.88em; background: var(--bg-code); padding: 0.15em 0.4em; border-radius: 4px; border: 1px solid var(--border); }
+pre { background: var(--bg-code); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.2rem; overflow-x: auto; margin: 1rem 0; font-size: 0.82rem; line-height: 1.55; }
+pre code { background: none; border: none; padding: 0; font-size: inherit; }
+table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.88rem; }
+thead { background: var(--bg-card); }
+th { text-align: left; padding: 0.6rem 0.8rem; font-weight: 600; color: var(--accent); border-bottom: 2px solid var(--border); position: sticky; top: 0; }
+td { padding: 0.5rem 0.8rem; border-bottom: 1px solid var(--border); }
+tr:hover td { background: rgba(88,166,255,0.04); }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.2rem; margin: 1.5rem 0; }
+.card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; transition: border-color 0.2s, transform 0.15s; text-decoration: none; color: var(--text-primary); display: block; }
+.card:hover { border-color: var(--accent); transform: translateY(-2px); text-decoration: none; }
+.card h3 { color: var(--accent); margin: 0 0 0.5rem; font-size: 1.1rem; }
+.card p { color: var(--text-secondary); font-size: 0.88rem; margin: 0; }
+.card .io { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.5rem; font-family: var(--font-mono); }
+.notice { border-left: 4px solid var(--accent); background: rgba(88,166,255,0.06); padding: 0.8rem 1rem; margin: 1rem 0; border-radius: 0 var(--radius) var(--radius) 0; font-size: 0.9rem; }
+.notice.warn { border-color: var(--accent-orange); background: rgba(210,153,34,0.06); }
+.notice.info { border-color: var(--accent-green); background: rgba(63,185,80,0.06); }
+.mermaid { text-align: center; margin: 1.5rem 0; overflow-x: auto; background: transparent; }
+.mermaid svg { max-width: 100%; height: auto; }
+mjx-container { overflow-x: auto; }
+.page-footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--border); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
+.page-footer a { color: var(--accent); text-decoration: none; font-size: 0.9rem; padding: 0.4rem 0; }
+.page-footer a:hover { text-decoration: underline; }
+.tag { display: inline-block; padding: 0.15rem 0.5rem; background: rgba(88,166,255,0.12); color: var(--accent); border-radius: 12px; font-size: 0.75rem; margin: 0.1rem; }
+.tag.green { background: rgba(63,185,80,0.12); color: var(--accent-green); }
+.tag.orange { background: rgba(210,153,34,0.12); color: var(--accent-orange); }
+.tag.purple { background: rgba(163,113,247,0.12); color: var(--accent-purple); }
+.hero { text-align: center; padding: 2rem 0 1.5rem; }
+.hero h1 { font-size: 2.4rem; border: none; margin-bottom: 0.5rem; }
+.hero .subtitle { color: var(--text-secondary); font-size: 1.05rem; max-width: 600px; margin: 0 auto; }
+@media (max-width: 1200px) { .toc { display: none; } .content { max-width: calc(100% - var(--sidebar-width)); } }
+@media (max-width: 768px) { :root { font-size: 14px; } .sidebar { transform: translateX(-100%); } .sidebar.open { transform: translateX(0); } .sidebar-toggle { display: block; } .content { margin-left: 0; max-width: 100%; padding: 1.2rem; } .card-grid { grid-template-columns: 1fr; } .page-footer { flex-direction: column; } }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>mermaid.initialize({startOnLoad:true, theme:'dark', themeVariables:{primaryColor:'#1c2333',primaryTextColor:'#e6edf3',primaryBorderColor:'#30363d',lineColor:'#58a6ff',secondaryColor:'#161b22',tertiaryColor:'#0d1117'}});</script>
+  <script>MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']]},svg:{fontCache:'global'}};</script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script>document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});</script>
+</head>
+<body>
+
+<nav id="sidebar" class="sidebar">
+  <div class="sidebar-header">
+    <h2>UR10 技术文档</h2>
+    <div class="subtitle">机械臂运动学与动力学</div>
+  </div>
+  <ul class="nav-list">
+    <li><a href="../README.html">项目概览</a></li>
+    <li class="nav-section">运动学</li>
+    <li class="active"><a href="index.html">正运动学</a></li>
+    <li><a href="../%E9%80%86%E8%BF%90%E5%8A%A8%E5%AD%A6/index.html">逆运动学</a></li>
+    <li class="nav-section">动力学</li>
+    <li><a href="../%E9%80%86%E5%8A%A8%E5%8A%9B%E5%AD%A6/index.html">逆动力学</a></li>
+    <li class="nav-section">辨识</li>
+    <li><a href="../%E7%94%B5%E6%B5%81%E6%A8%A1%E5%9E%8B%E8%BE%A8%E8%AF%86/index.html">电流模型辨识</a></li>
+  </ul>
+</nav>
+
+<main id="content" class="content">
+  <button id="sidebarToggle" class="sidebar-toggle">☰</button>
+  <div id="toc" class="toc"></div>
+  <div class="main-content">
+
+<h1>正运动学 (Forward Kinematics)</h1>
+
+<div class="hero">
+  <p class="subtitle">给定 6 个关节角度 <strong>q</strong>，通过 URDF 刚体树模型计算铲斗 TCP 的齐次变换矩阵 <strong>T</strong>（位姿）</p>
+</div>
+
+<h2 id="overview">1. 整体介绍</h2>
+
+<h3 id="overview-purpose">1.1 在机器人系统中的作用</h3>
+
+<p>正运动学是机器人系统的<strong>基础计算模块</strong>。它将关节空间（6 维角度向量）映射到笛卡尔工作空间（3D 位置 + 3D 姿态），是所有以下功能的前置条件：</p>
+
+<ul>
+  <li><strong>Rviz 位姿可视化</strong>：在 MATLAB figure 中渲染机器人当前姿态</li>
+  <li><strong>TCP 轨迹计算</strong>：给定关节角度序列，计算末端在空间中的运动路径</li>
+  <li><strong>逆运动学误差评估</strong>：验证 IK 求解结果的实际位姿与目标位姿的偏差</li>
+  <li><strong>碰撞检测前置</strong>：更新机器人各连杆的碰撞几何体位置</li>
+</ul>
+
+<h3 id="overview-io">1.2 输入与输出</h3>
+
+<table>
+<tr><th>符号</th><th>名称</th><th>维度</th><th>单位</th><th>说明</th></tr>
+<tr><td>$q$</td><td>关节角度</td><td>$6 \times 1$</td><td>rad</td><td>6 个旋转关节的位置</td></tr>
+<tr><td>$T_{\text{TCP}}$</td><td>齐次变换矩阵</td><td>$4 \times 4$</td><td>—</td><td>$\begin{bmatrix} R & p \\ 0 & 1 \end{bmatrix}$, $R \in SO(3)$, $p \in \mathbb{R}^3$</td></tr>
+<tr><td>pos</td><td>TCP 位置</td><td>$3 \times 1$</td><td>m</td><td>从 $T$ 提取的平移分量 $(x,y,z)$</td></tr>
+<tr><td>rpy</td><td>姿态 (RPY)</td><td>$3 \times 1$</td><td>rad</td><td>从 $T$ 提取的 XYZ 欧拉角 $(\phi,\theta,\psi)$</td></tr>
+</table>
+
+<h3 id="overview-math">1.3 数学意义</h3>
+
+<p>正运动学的数学本质是<strong>齐次变换矩阵的链式乘积</strong>：</p>
+
+$$T_{\text{TCP}}(q) = T_0^1(q_1) \cdot T_1^2(q_2) \cdot T_2^3(q_3) \cdot T_3^4(q_4) \cdot T_4^5(q_5) \cdot T_5^6(q_6) \cdot T_6^{\text{TCP}}$$
+
+<p>其中每个 $T_i^{i+1}(q_i)$ 表示从连杆 $i$ 坐标系到连杆 $i+1$ 坐标系的齐次变换，是关节角度 $q_i$ 的函数。$T_6^{\text{TCP}}$ 是固定的末端工具偏移。</p>
+
+<p>本项目<strong>未显式使用 DH 参数</strong>，而是通过 MATLAB 的 <code>importrobot</code> 从 URDF 文件自动解析所有坐标系变换。URDF 中的 <code>&lt;joint&gt;</code> 定义了各关节的旋转轴和原点偏移，MATLAB 内部将其转换为等价的齐次变换链。</p>
+
+<h3 id="overview-dataflow">1.4 数据流</h3>
+
+<div class="mermaid">
+graph LR
+    subgraph Input
+        Q["关节角度<br/>q ∈ ℝ⁶"]
+    end
+    subgraph FK["正运动学计算"]
+        GT["getTransform(robot, q,<br/>'sensor_shovel_tcp')"] -->|"返回 4×4 齐次矩阵"| T
+    end
+    subgraph Output
+        T["T ∈ SE(3)<br/>4×4 齐次变换"]
+        POS["tform2trvec(T)<br/>→ (x,y,z) 位置"]
+        RPY["tform2eul(T,'XYZ')<br/>→ (φ,θ,ψ) 姿态"]
+    end
+    Q --> GT
+    T --> POS
+    T --> RPY
+</div>
+
+<h3 id="overview-applications">1.5 在本项目中的实际用途</h3>
+
+<ul>
+  <li><strong>GUI 实时渲染</strong>：<code>ur10_gui_control_virtual.m</code> 在每次刷新时调用 <code>getTransform</code>，用红点标记当前 TCP 位置</li>
+  <li><strong>仿真后分析</strong>：<code>run_virtual_trajectory_demo.m</code> 仿真结束后计算完整 TCP 路径用于 3D 绘图</li>
+  <li><strong>IK 误差评估</strong>：<code>rtfg_kinematics.m</code> 调用 FK 计算实际位姿以比较位置误差和方向误差</li>
+  <li><strong>CSV 轨迹回放</strong>：<code>realCsvFitRenderRobot.m</code> 使用 FK 从关节路径计算 TCP 路径以可视化</li>
+</ul>
+
+<h2 id="source-analysis">2. 源码分析</h2>
+
+<h3 id="source-files">2.1 核心文件</h3>
+
+<table>
+<tr><th>文件</th><th>路径</th><th>作用</th></tr>
+<tr><td><strong>fk_tcp_pose.m</strong></td><td><code>test/virtual/utils/fk_tcp_pose.m</code></td><td>核心 FK 包装器：调用 getTransform → 提取位置和 RPY 欧拉角</td></tr>
+<tr><td><strong>rtfg_utils.m</strong></td><td><code>realtime_trajectory_fit_gui/utils/rtfg_utils.m</code></td><td>getTcpPosition (单点 FK) + computeTcpPath (批量 FK 路径)</td></tr>
+<tr><td><strong>build_ur10_virtual_robot.m</strong></td><td><code>test/virtual/build_ur10_virtual_robot.m</code></td><td>从 xacro URDF 导入建立 rigidBodyTree 对象，设定 TCP 参考坐标系</td></tr>
+<tr><td><strong>realCsvFitLoadRobot.m</strong></td><td><code>real_csv_fit_control/realCsvFitLoadRobot.m</code></td><td>与 build_ur10_virtual_robot 同源的机器人加载器（用于 CSV 回放场景）</td></tr>
+</table>
+
+<h3 id="source-functions">2.2 函数详解</h3>
+
+<h4>fk_tcp_pose.m — 主 FK 包装器</h4>
+
+<pre><code class="language-matlab">function [T, pos, rpy] = fk_tcp_pose(robot, q)
+    q = validate_joint_vector(q, []);        % 1. 验证 q 维度=6、值有限
+    T = getTransform(robot, q, 'sensor_shovel_tcp');  % 2. 核心 FK 计算
+    pos = tform2trvec(T);                          % 3. 提取位置 (x,y,z)
+    rpy = tform2eul(T, 'XYZ');                     % 4. 提取欧拉角 (φ,θ,ψ)
+end</code></pre>
+
+<div class="notice">
+  <strong>调用链</strong>: validate_joint_vector → getTransform → tform2trvec / tform2eul<br>
+  <strong>被调用者</strong>: ur10_gui_control_virtual.m (renderScene, updateTcpText), run_virtual_trajectory_demo.m (仿真后 TCP 计算)
+</div>
+
+<h4>rtfg_utils.m — 批量 FK 路径计算</h4>
+
+<pre><code class="language-matlab">function pos = getTcpPosition(robot, q)
+    T = getTransform(robot, q, 'sensor_shovel_tcp');
+    pos = tform2trvec(T);    % 仅返回位置，不提取姿态
+end
+
+function path = computeTcpPath(robot, qSeries)
+    path = zeros(size(qSeries, 1), 3);
+    for i = 1:size(qSeries, 1)
+        path(i,:) = getTcpPosition(robot, qSeries(i,:));
+    end
+end</code></pre>
+
+<div class="notice info">
+  <strong>批量优化</strong>: <code>computeTcpPath</code> 采用逐行循环而非向量化方式，因为 <code>getTransform</code> 本身每次只能处理一个位姿。对于大型轨迹（140+ 采样点），这是明确的性能瓶颈，但保证了正确性。
+</div>
+
+<h4>build_ur10_virtual_robot.m — 机器人模型构建</h4>
+
+<pre><code class="language-matlab">function [robot, meta] = build_ur10_virtual_robot(opts)
+    % 1. 预处理 xacro → 临时 URDF
+    raw = fileread(opts.xacroPath);
+    raw = regexprep(raw, '&lt;xacro:arg[^&gt;]*/&gt;\s*', '');
+    raw = strrep(raw, '$(arg mesh_root)', 'meshes');
+
+    % 2. 导入为 rigidBodyTree
+    robot = importrobot(tmpUrdf, 'DataFormat', 'row', 'MeshPath', meshDir);
+
+    % 3. 去除 TCP 上的碰撞几何（避免自碰撞误检）
+    robot = stripVirtualOnlyCollisions(robot);
+
+    % 4. 验证恰好 6 个旋转关节
+    meta.endEffector = 'sensor_shovel_tcp';
+end</code></pre>
+
+<h3 id="source-call-tree">2.3 模块调用关系</h3>
+
+<div class="mermaid">
+graph TB
+    subgraph Model["机器人模型"]
+        XACRO["assembly.urdf.xacro<br/>UR10 + 铲斗 + 底座"]
+        MESHES["assembly/meshes/<br/>STL/DAE 网格"]
+    end
+    subgraph Build["模型加载"]
+        BUILD["build_ur10_virtual_robot.m<br/>xacro → rigidBodyTree"]
+        LOAD["realCsvFitLoadRobot.m<br/>（同源加载器）"]
+    end
+    subgraph FK["正运动学"]
+        FK_TCP["fk_tcp_pose(q)<br/>getTransform → T, pos, rpy"]
+        TCP_POS["getTcpPosition(q)<br/>getTransform → pos"]
+        TCP_PATH["computeTcpPath(qSeries)<br/>逐点 getTcpPosition"]
+    end
+    subgraph Consumers["消费者"]
+        GUI["ur10_gui_control_virtual<br/>渲染 + TCP 文本"]
+        DEMO["run_virtual_trajectory_demo<br/>3D 路径绘图"]
+        IK["rtfg_kinematics<br/>IK 位姿误差"]
+        CSV_RENDER["realCsvFitRenderRobot<br/>CSV 轨迹可视化"]
+    end
+    XACRO --> BUILD
+    XACRO --> LOAD
+    MESHES --> BUILD
+    BUILD --> FK_TCP
+    LOAD --> TCP_POS
+    FK_TCP --> TCP_POS
+    TCP_POS --> TCP_PATH
+    FK_TCP --> GUI
+    FK_TCP --> DEMO
+    TCP_POS --> CSV_RENDER
+    TCP_POS --> IK
+    TCP_PATH --> DEMO
+</div>
+
+<h3 id="source-joints">2.4 关节坐标系定义</h3>
+
+<p>UR10 的 6 个旋转关节通过 URDF <code>&lt;joint&gt;</code> 定义：</p>
+
+<table>
+<tr><th>关节</th><th>URDF 名称</th><th>旋转轴</th><th>父连杆</th><th>子连杆</th><th>原点偏移 (m)</th></tr>
+<tr><td>J1</td><td><code>ur10_shoulder_pan</code></td><td>+Z</td><td>base_jizuo</td><td>ur10_shoulder</td><td>(0, 0, 0.1273)</td></tr>
+<tr><td>J2</td><td><code>ur10_shoulder_lift</code></td><td>+Y</td><td>ur10_shoulder</td><td>ur10_upper_arm</td><td>(0, 0.220941, 0)</td></tr>
+<tr><td>J3</td><td><code>ur10_elbow</code></td><td>+Y</td><td>ur10_upper_arm</td><td>ur10_forearm</td><td>(-0.0000039, -0.1719, 0.612)</td></tr>
+<tr><td>J4</td><td><code>ur10_wrist_1</code></td><td>+Y</td><td>ur10_forearm</td><td>ur10_wrist_1</td><td>(-0.0000036, 0, 0.5723)</td></tr>
+<tr><td>J5</td><td><code>ur10_wrist_2</code></td><td>-Z</td><td>ur10_wrist_1</td><td>ur10_wrist_2</td><td>(0.0000003, 0.1149, 0.0000003)</td></tr>
+<tr><td>J6</td><td><code>ur10_wrist_3</code></td><td>+Y</td><td>ur10_wrist_2</td><td>ur10_wrist_3</td><td>(0, -0.0000003, 0.1157)</td></tr>
+</table>
+
+<div class="notice">
+  <strong>关节轴分布</strong>: UR10 的 6 个关节采用 Y-Y-Y 腕部结构（J4-J6），这是典型的球腕设计，使得腕部三个关节轴线交于一点，简化了逆运动学求解。<br><br>
+  <strong>注意</strong>: J5 的旋转轴为 -Z（负方向），J1-J4 和 J6 为正方向。所有关节限制设置为 $[-2\pi, 2\pi]$（无硬限位）。
+</div>
+
+<h3 id="source-model-source">2.5 机器人模型来源</h3>
+
+<p>本项目统一使用 <code>assembly/assembly.urdf.xacro</code> 作为机器人模型的<strong>单一真相来源</strong>。该文件包含：</p>
+
+<ul>
+  <li><strong>UR10 机械臂本体</strong>：6 个旋转关节 + 7 个连杆（含惯性和碰撞几何体）</li>
+  <li><strong>铲斗工具 (sensor_shovel)</strong>：通过固定关节 <code>ur10-sensor_shovel</code> 连接到手腕</li>
+  <li><strong>TCP 参考点 (sensor_shovel_tcp)</strong>：固定偏移，用作末端执行器参考坐标系</li>
+  <li><strong>底座 (base_jizuo)</strong>：UR10 的安装底座</li>
+</ul>
+
+<p>MATLAB 侧通过 <code>importrobot(urdf, 'DataFormat', 'row')</code> 加载，C++ 侧通过 <code>kdl_parser::treeFromUrdfModel</code> 加载。两者共享同一个 URDF 文件，保证了运动学模型的一致性。</p>
+
+<h2 id="dependencies">3. 依赖分析</h2>
+
+<table>
+<tr><th>库 / 工具箱</th><th>类型</th><th>用途</th><th>替代方案</th></tr>
+<tr><td><strong>Robotics System Toolbox</strong></td><td>MATLAB 工具箱</td><td><code>importrobot</code> 加载 URDF，构建 rigidBodyTree；<code>getTransform</code> 执行 FK 计算</td><td>手动 DH 参数表 + 自写齐次变换链（精度相同但代码量大）</td></tr>
+<tr><td><strong>Navigation Toolbox</strong></td><td>MATLAB 工具箱</td><td><code>tform2trvec</code> 提取位置，<code>tform2eul</code> 提取欧拉角</td><td>直接从 T 矩阵取元素（前三行第四列 = 位置；需手动从 R 矩阵反算欧拉角）</td></tr>
+<tr><td><strong>assembly/assembly.urdf.xacro</strong></td><td>模型文件</td><td>UR10 运动学与惯性的权威定义</td><td>URDF（无 xacro 宏），SRDF（仅语义信息）</td></tr>
+<tr><td><strong>assembly/meshes/</strong></td><td>网格资源</td><td>STL/DAE 可视化网格</td><td>程序化几何体（不依赖外部文件）</td></tr>
+</table>
+
+<h2 id="innovation">4. 创新点分析</h2>
+
+<h3 id="innovation-compare">4.1 与标准方法的对比</h3>
+
+<table>
+<tr><th>方面</th><th>标准方法（解析 DH）</th><th>本项目方法（URDF 导入）</th></tr>
+<tr><td>参数定义</td><td>显式 DH 表：$a_i, d_i, \alpha_i, \theta_i$</td><td>URDF <code>&lt;joint&gt;</code> 的 origin + axis</td></tr>
+<tr><td>代码量</td><td>需手写 6 个 $4 \times 4$ 矩阵的连乘函数</td><td>一行 <code>getTransform(robot, q, 'sensor_shovel_tcp')</code></td></tr>
+<tr><td>可维护性</td><td>模型修改需同步更新 DH 表和代码</td><td>仅修改 URDF，所有消费者自动更新</td></tr>
+<tr><td>跨平台一致性</td><td>需手动保持 MATLAB/ROS 一致</td><td>同一 URDF 被 MATLAB 和 ROS2 (KDL/MoveIt) 共享</td></tr>
+<tr><td>额外功能</td><td>无</td><td>自动继承碰撞几何体用于碰撞检测；自动获取惯性参数用于动力学</td></tr>
+</table>
+
+<h3 id="innovation-points">4.2 工程亮点</h3>
+
+<ul>
+  <li><strong>单一真相来源</strong>：URDF/Xacro 文件被 MATLAB 和 C++ ROS2 两侧共享，消除了多套参数之间的不一致风险。这是工业级机器人项目的关键实践</li>
+  <li><strong>批量 FK 模式</strong>：<code>computeTcpPath</code> 的逐点计算虽然简单，但作为 <code>rtfg_utils.m</code> 的公共接口被多个模块复用，避免了分散的重复实现</li>
+  <li><strong>TCP 碰撞剥离</strong>：<code>build_ur10_virtual_robot.m</code> 主动移除 TCP 参考点的碰撞几何体，避免将工具坐标系误检为自碰撞。这是从实际调试中产生的针对性优化</li>
+</ul>
+
+<h3 id="innovation-limits">4.3 局限性与改进方向</h3>
+
+<ul>
+  <li><strong>性能</strong>：批量 FK (<code>computeTcpPath</code>) 使用 for 循环逐点调用 <code>getTransform</code>，对于数千个采样点的轨迹可能成为瓶颈。可考虑 MATLAB 的内部批处理 API 或 MEX 加速</li>
+  <li><strong>依赖</strong>：完全依赖 MATLAB Robotics System Toolbox，无法在 GNU Octave 等开源替代环境中运行</li>
+  <li><strong>封闭性</strong>：未暴露 DH 参数表，使得直接与教科书公式对照不方便，不利于教学场景</li>
+</ul>
+
+  </div>
+  <footer class="page-footer">
+    <a href="../README.html">← 返回首页</a>
+    <a href="../%E9%80%86%E8%BF%90%E5%8A%A8%E5%AD%A6/index.html">下一模块：逆运动学 →</a>
+  </footer>
+</main>
+
+  <script>
+(function(){'use strict';
+var sidebar=document.getElementById('sidebar');
+var toggleBtn=document.getElementById('sidebarToggle');
+if(toggleBtn&&sidebar){toggleBtn.addEventListener('click',function(e){e.stopPropagation();sidebar.classList.toggle('open');});document.addEventListener('click',function(e){if(!sidebar.contains(e.target)&&e.target!==toggleBtn){sidebar.classList.remove('open');}});}
+var tocContainer=document.getElementById('toc');
+var mainContent=document.querySelector('.main-content');
+if(tocContainer&&mainContent){var headings=mainContent.querySelectorAll('h2,h3');if(headings.length>1){var tocTitle=document.createElement('h4');tocTitle.textContent='目录';tocContainer.appendChild(tocTitle);headings.forEach(function(h,i){var id=h.id||('section-'+i);h.id=id;var link=document.createElement('a');link.href='#'+id;link.textContent=h.textContent;link.className=h.tagName==='H3'?'toc-h3':'';tocContainer.appendChild(link);});var observer=new IntersectionObserver(function(entries){entries.forEach(function(entry){var id=entry.target.id;var tocLink=tocContainer.querySelector('a[href="#'+id+'"]');if(tocLink){if(entry.isIntersecting){tocContainer.querySelectorAll('a.visible').forEach(function(a){a.classList.remove('visible');});tocLink.classList.add('visible');}}});},{rootMargin:'-80px 0px -70% 0px',threshold:0});headings.forEach(function(h){observer.observe(h);});}}
+var currentPage=window.location.pathname.split('/').filter(Boolean).pop()||'';
+document.querySelectorAll('.nav-list li a').forEach(function(a){var href=a.getAttribute('href')||'';if(href.includes(currentPage)&&currentPage!==''){a.parentElement.classList.add('active');}});
+document.querySelectorAll('a[href^="http"]').forEach(function(a){a.setAttribute('target','_blank');a.setAttribute('rel','noopener noreferrer');});
+})();
+  </script>
+</body>
+</html>
