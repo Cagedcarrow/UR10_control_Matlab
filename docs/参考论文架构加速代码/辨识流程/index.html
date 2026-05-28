@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>系统辨识流程 — 参考论文架构加速代码</title>
+  <style>
+:root {
+  --bg-primary: #0d1117; --bg-secondary: #161b22; --bg-card: #1c2333;
+  --bg-code: #0d1117; --text-primary: #e6edf3; --text-secondary: #8b949e;
+  --text-muted: #6e7681; --accent: #58a6ff; --accent-green: #3fb950;
+  --accent-orange: #d29922; --accent-purple: #a371f7; --accent-red: #f85149;
+  --border: #30363d; --shadow: 0 2px 8px rgba(0,0,0,0.4); --radius: 8px;
+  --sidebar-width: 260px; --toc-width: 220px;
+  --font-mono: 'JetBrains Mono','Fira Code','Cascadia Code','Consolas',monospace;
+  --font-sans: -apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans SC',sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; font-size: 15px; }
+body { font-family: var(--font-sans); background: var(--bg-primary); color: var(--text-primary); line-height: 1.7; min-height: 100vh; }
+.sidebar { position: fixed; top: 0; left: 0; width: var(--sidebar-width); height: 100vh; background: var(--bg-secondary); border-right: 1px solid var(--border); overflow-y: auto; z-index: 100; transition: transform 0.3s ease; padding-bottom: 2rem; }
+.sidebar-header { padding: 1.5rem 1.2rem 1rem; border-bottom: 1px solid var(--border); margin-bottom: 0.5rem; }
+.sidebar-header h2 { font-size: 1.15rem; color: var(--accent); letter-spacing: 0.5px; }
+.sidebar-header .subtitle { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem; }
+.nav-list { list-style: none; padding: 0 0.5rem; }
+.nav-list li { margin: 0; }
+.nav-list li a { display: block; padding: 0.45rem 0.8rem; color: var(--text-secondary); text-decoration: none; border-radius: 6px; font-size: 0.88rem; transition: background 0.15s, color 0.15s; }
+.nav-list li a:hover { background: rgba(88,166,255,0.08); color: var(--text-primary); }
+.nav-list li.active a { background: rgba(88,166,255,0.15); color: var(--accent); font-weight: 600; }
+.nav-section { padding: 0.6rem 0.8rem 0.2rem; font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); letter-spacing: 1px; font-weight: 700; }
+.content { margin-left: var(--sidebar-width); padding: 2rem 3rem; max-width: calc(100% - var(--sidebar-width) - var(--toc-width)); min-height: 100vh; }
+.main-content { max-width: 900px; }
+.toc { position: fixed; right: 1.5rem; top: 2rem; width: var(--toc-width); max-height: calc(100vh - 4rem); overflow-y: auto; font-size: 0.8rem; border-left: 1px solid var(--border); padding-left: 1rem; }
+.toc h4 { color: var(--text-secondary); margin-bottom: 0.5rem; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.5px; }
+.toc a { display: block; color: var(--text-muted); text-decoration: none; padding: 0.15rem 0; transition: color 0.15s; }
+.toc a:hover, .toc a.visible { color: var(--accent); }
+h1 { font-size: 2rem; margin-bottom: 0.5rem; color: var(--text-primary); border-bottom: 2px solid var(--border); padding-bottom: 0.5rem; }
+h2 { font-size: 1.5rem; margin: 2.5rem 0 1rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+h3 { font-size: 1.2rem; margin: 1.8rem 0 0.8rem; color: var(--text-primary); }
+h4 { font-size: 1rem; margin: 1.2rem 0 0.5rem; color: var(--text-secondary); }
+p { margin: 0.8rem 0; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+ul, ol { margin: 0.5rem 0 0.5rem 1.5rem; }
+li { margin: 0.25rem 0; }
+code { font-family: var(--font-mono); font-size: 0.88em; background: var(--bg-code); padding: 0.15em 0.4em; border-radius: 4px; border: 1px solid var(--border); }
+pre { background: var(--bg-code); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.2rem; overflow-x: auto; margin: 1rem 0; font-size: 0.82rem; line-height: 1.55; }
+pre code { background: none; border: none; padding: 0; font-size: inherit; }
+table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.88rem; }
+thead { background: var(--bg-card); }
+th { text-align: left; padding: 0.6rem 0.8rem; font-weight: 600; color: var(--accent); border-bottom: 2px solid var(--border); }
+td { padding: 0.5rem 0.8rem; border-bottom: 1px solid var(--border); }
+tr:hover td { background: rgba(88,166,255,0.04); }
+.notice { border-left: 4px solid var(--accent); background: rgba(88,166,255,0.06); padding: 0.8rem 1rem; margin: 1rem 0; border-radius: 0 var(--radius) var(--radius) 0; font-size: 0.9rem; }
+.notice.warn { border-color: var(--accent-orange); background: rgba(210,153,34,0.06); }
+.notice.info { border-color: var(--accent-green); background: rgba(63,185,80,0.06); }
+.tag { display: inline-block; padding: 0.15rem 0.5rem; background: rgba(88,166,255,0.12); color: var(--accent); border-radius: 12px; font-size: 0.75rem; margin: 0.1rem; }
+.tag.green { background: rgba(63,185,80,0.12); color: var(--accent-green); }
+.tag.orange { background: rgba(210,153,34,0.12); color: var(--accent-orange); }
+.tag.red { background: rgba(248,81,73,0.12); color: var(--accent-red); }
+.page-footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--border); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
+.page-footer a { color: var(--accent); text-decoration: none; font-size: 0.9rem; padding: 0.4rem 0; }
+@media (max-width: 1200px) { .toc { display: none; } .content { max-width: calc(100% - var(--sidebar-width)); } }
+@media (max-width: 768px) { :root { font-size: 14px; } .sidebar { transform: translateX(-100%); } .sidebar.open { transform: translateX(0); } .content { margin-left: 0; max-width: 100%; padding: 1.2rem; } }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>mermaid.initialize({startOnLoad:true, theme:'dark', themeVariables:{primaryColor:'#1c2333',primaryTextColor:'#e6edf3',primaryBorderColor:'#30363d',lineColor:'#58a6ff',secondaryColor:'#161b22',tertiaryColor:'#0d1117'}});</script>
+  <script>MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']]},svg:{fontCache:'global'}};</script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script>document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});</script>
+</head>
+<body>
+
+<nav id="sidebar" class="sidebar">
+  <div class="sidebar-header">
+    <h2>参考论文 — 架构加速</h2>
+    <div class="subtitle">创新点与代码实现指南</div>
+  </div>
+  <ul class="nav-list">
+    <li><a href="../index.html">创新点总览</a></li>
+    <li class="nav-section">详细文档</li>
+    <li><a href="../%E5%87%BD%E6%95%B0%E8%AF%A6%E8%A7%A3/index.html">函数实现详解</a></li>
+    <li class="active"><a href="index.html">系统辨识流程</a></li>
+    <li><a href="../%E8%AE%BA%E6%96%87%E6%8C%87%E5%AF%BC/index.html">论文写作指导</a></li>
+  </ul>
+</nav>
+
+<main id="content" class="content">
+  <div id="toc" class="toc"></div>
+  <div class="main-content">
+
+<h1>系统辨识流程</h1>
+
+<div style="text-align:center;padding:1.5rem 0;">
+  <p style="color:var(--text-secondary);font-size:1.05rem;">
+    哪些参数需要辨识、如何辨识、辨识后如何验证
+  </p>
+</div>
+
+<h2 id="overview">1. 辨识全景：四类参数的辨识需求</h2>
+
+<div class="mermaid">
+graph LR
+    subgraph Ready["✅ 已辨识 (capsule 中)"]
+        R1["完整动力学系数<br/>(惯性/科里奥利/重力)"]
+        R2["Sigmoid 摩擦 30 参数"]
+        R3["电机增益 K1~K6"]
+        R4["19 维负载回归结构"]
+    end
+    subgraph Need["❌ 需要辨识 (MATLAB 项目中)"]
+        N1["线性电流模型<br/>bias, kq, kdq, kddq"]
+        N2["(可选) 新机器人<br/>完整动力学重辨识"]
+    end
+    Ready -->|"直接编译使用"| Deploy["ROS2 部署"]
+    Need -->|"需辨识后才能用"| Deploy
+</div>
+
+<div class="notice warn">
+  <strong>重要澄清</strong>: capsule-8515919 中的 8 个 C++ 函数已经包含了辨识好的 UR10 完整动力学参数。如果你用的是<b>同一台 UR10</b>，这些函数<b>可直接使用</b>，无需做任何辨识。只有 MATLAB 项目 (<code>test/virtual/</code>) 中的简单线性电流模型是硬编码启发值，需要辨识。
+</div>
+
+<h2 id="what-ready">2. 可直接使用的内容（无需辨识）</h2>
+
+<h3>2.1 完整逆动力学求解器</h3>
+
+<p>以下文件<b>已包含辨识好的参数</b>，可直接编译部署：</p>
+
+<ul>
+  <li><code>test/capsule-8515919/code/ur10_inverse_dynamics_solver/</code> 全部内容</li>
+  <li>8 个 MATLAB 生成的 C++ 源文件 — 动力学系数已嵌入常量</li>
+  <li><code>ur10_inverse_dynamics_solver.cpp</code> — Sigmoid 摩擦 30 个参数已嵌入</li>
+  <li><code>ur10_inverse_dynamics_solver.h</code> — 电机增益 K1~K6 已定义</li>
+</ul>
+
+<h3>2.2 抽象接口和插件架构</h3>
+
+<ul>
+  <li><code>inverse_dynamics_solver/</code> — 抽象基类 (6 个虚函数接口)</li>
+  <li><code>ros_extensions_utilities/</code> — ROS2 参数读写工具</li>
+  <li><code>kdl_inverse_dynamics_solver/</code> — KDL 对比求解器</li>
+  <li>pluginlib XML 注册文件 — 插件动态加载机制</li>
+</ul>
+
+<h2 id="what-need">3. 需要辨识的内容</h2>
+
+<h3 id="linear-model">3.1 线性电流模型 (MATLAB 项目中的硬编码值)</h3>
+
+<p>文件 <code>test/virtual/utils/estimate_current_simple.m</code> 定义了简单的线性电流模型：</p>
+
+$$i_{est,j} = b_j + kq_j \cdot q_j + kdq_j \cdot \dot{q}_j + kddq_j \cdot \ddot{q}_j$$
+
+<p>每个关节 4 个参数 (bias, kq, kdq, kddq)，共 24 个参数。当前值是硬编码的启发值：</p>
+
+<table>
+<tr><th>参数</th><th>J1</th><th>J2</th><th>J3</th><th>J4</th><th>J5</th><th>J6</th></tr>
+<tr><td>bias</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+<tr><td>kq</td><td>0.12</td><td>0.10</td><td>0.10</td><td>0.06</td><td>0.05</td><td>0.05</td></tr>
+<tr><td>kdq</td><td>0.85</td><td>0.88</td><td>0.82</td><td>0.45</td><td>0.40</td><td>0.36</td></tr>
+<tr><td>kddq</td><td>0.16</td><td>0.18</td><td>0.16</td><td>0.08</td><td>0.07</td><td>0.06</td></tr>
+</table>
+
+<div class="notice warn">
+  <strong>注意</strong>: 这些硬编码值精度极低。评估报告 (RMSE 达到数千安培) 表明它们与真实 UR10 行为偏差极大，<b>不能直接用于任何实际控制</b>。如需使用此线性模型，<b>必须重新辨识</b>。但如果你的目标是前馈力矩控制，应该使用 capsule 中的完整动力学求解器 (已辨识好)，而非这个简化线性模型。
+</div>
+
+<h3 id="re-id">3.2 换用新机器人时的完整重辨识</h3>
+
+<p>如果换用非 UR10 的机械臂，需要重新走完整辨识流程：</p>
+
+<table>
+<tr><th>需要辨识的内容</th><th>方法</th><th>难度</th></tr>
+<tr><td>Lagrange 动力学参数 (惯性/科里奥利/重力)</td><td>Symbolic Toolbox 符号推导 + 非线性优化</td><td><span class="tag red">高</span></td></tr>
+<tr><td>Sigmoid 摩擦参数 (30 个)</td><td>Levenberg-Marquardt 非线性最小二乘</td><td><span class="tag orange">中</span></td></tr>
+<tr><td>电机增益 K1~K6</td><td>制造商数据手册或静态加载试验</td><td><span class="tag green">低</span></td></tr>
+</table>
+
+<h2 id="workflow">4. 完整辨识流程</h2>
+
+<h3 id="step1">步骤 1: 激励轨迹设计与数据采集</h3>
+
+<p><strong>激励轨迹要求</strong>：</p>
+<ul>
+  <li>轨迹需要充分激励所有关节的动力学特性</li>
+  <li>覆盖各关节的完整运动范围</li>
+  <li>包含不同速度段 (低速摩擦主导 → 高速惯性主导)</li>
+  <li>建议使用傅里叶级数轨迹 (周期性, 便于频域分析)</li>
+</ul>
+
+<p><strong>数据采集格式 (CSV)</strong>：</p>
+
+<table>
+<tr><th>列名</th><th>维度</th><th>单位</th><th>说明</th></tr>
+<tr><td><code>Act_q0</code> ~ <code>Act_q5</code></td><td>6</td><td>rad</td><td>关节位置 (从 UR 驱动编码器读取)</td></tr>
+<tr><td><code>Act_qd0</code> ~ <code>Act_qd5</code></td><td>6</td><td>rad/s</td><td>关节速度 (编码器微分)</td></tr>
+<tr><td><code>Act_I0</code> ~ <code>Act_I5</code></td><td>6</td><td>A</td><td>电机电流 (UR 实时数据端口)</td></tr>
+<tr><td><code>Time</code> (可选)</td><td>1</td><td>s</td><td>时间戳; 缺失则假定 50Hz 均匀采样</td></tr>
+</table>
+
+<p><strong>采样率</strong>: 项目中硬编码为 50Hz (<code>sampleTime = 0.02s</code>)。建议使用 125Hz (UR10 实时端口最大速率) 以获得更好的高频动力学信息。</p>
+
+<div class="notice info">
+  <strong>数据采集建议</strong>: 使用 UR10 的 Real-Time Data Exchange 接口 (端口 30003, 125Hz) 采集数据，而非 MATLAB 的 Robotics System Toolbox 连接器。RTDE 提供同步的时间戳和低延迟数据。
+</div>
+
+<h3 id="step2">步骤 2: 数据预处理</h3>
+
+<pre><code class="language-matlab">% 读取 CSV
+data = readtable('session_data.csv');
+q   = data{:, {'Act_q0','Act_q1','Act_q2','Act_q3','Act_q4','Act_q5'}};
+dq  = data{:, {'Act_qd0','Act_qd1','Act_qd2','Act_qd3','Act_qd4','Act_qd5'}};
+i   = data{:, {'Act_I0','Act_I1','Act_I2','Act_I3','Act_I4','Act_I5'}};
+
+% 数值微分求加速度 (或用低通滤波 + 中心差分)
+dt = 0.02;  % 50Hz
+dq_filt  = lowpass(dq, 10, 50);      % 10Hz 截止低通滤波
+ddq_filt = gradient(dq_filt) / dt;    % 中心差分
+ddq_filt = lowpass(ddq_filt, 10, 50); % 再次滤波
+
+% 去除静止段 (摩擦辨识不需要零速数据)
+is_moving = vecnorm(dq_filt, 2, 2) > 0.01;
+q   = q(is_moving, :);
+dq  = dq_filt(is_moving, :);
+ddq = ddq_filt(is_moving, :);
+i   = i(is_moving, :);
+</code></pre>
+
+<h3 id="step3a">步骤 3a: 简单线性模型辨识 (最小二乘)</h3>
+
+<p>MATLAB 中的 <code>estimate_current_simple.m</code> 使用的是<b>各关节独立</b>的线性模型：</p>
+
+<pre><code class="language-matlab">% 对每个关节独立做最小二乘
+for j = 1:6
+    % 构造回归矩阵: X = [ones, q_j, dq_j, ddq_j]
+    X = [ones(n,1), q(:,j), dq(:,j), ddq(:,j)];
+    % 最小二乘求解: coeff = X \ i_meas
+    coeff = X \ i(:,j);
+    bias(j) = coeff(1);
+    kq(j)   = coeff(2);
+    kdq(j)  = coeff(3);
+    kddq(j) = coeff(4);
+end
+</code></pre>
+
+<div class="notice">
+  <strong>局限性</strong>: 这种线性模型<b>完全忽略了关节耦合效应</b>。例如关节 2 的运动会影响关节 3 的负载力矩 (科里奥利耦合)，但线性模型假设各关节独立。因此它仅适用于低速、小范围运动的粗略估计。对于轨迹跟踪前馈控制，必须使用 capsule 中的完整动力学模型。
+</div>
+
+<h3 id="step3b">步骤 3b: 完整动力学辨识 (高级)</h3>
+
+<p>如需对非 UR10 机械臂进行完整辨识 (复现 capsule 中的方法)：</p>
+
+<pre><code class="language-matlab">% 1. Symbolic Math Toolbox 推导 Lagrange 方程
+syms q1 q2 q3 q4 q5 q6 real           % 关节角度
+syms dq1 dq2 dq3 dq4 dq5 dq6 real      % 关节速度
+syms ddq1 ddq2 ddq3 ddq4 ddq5 ddq6 real % 关节加速度
+% ... 定义 DH 参数和惯性参数 ...
+
+% 2. 推导 Lagrange 动力学
+% L = T - V (动能 - 势能)
+% τ = d/dt(∂L/∂dq) - ∂L/∂q
+% 得到闭式符号表达式 H(q), C(q,dq), G(q)
+
+% 3. 构造回归形式: τ = Y(q,dq,ddq) · π
+% 其中 π 是待辨识的参数向量
+
+% 4. 非线性优化辨识参数 π
+options = optimoptions('lsqnonlin', 'Display', 'iter');
+pi_opt = lsqnonlin(@(pi) costFunction(pi, Y, tau_meas), pi0, [], [], options);
+</code></pre>
+
+<h3 id="step4">步骤 4: 模型验证</h3>
+
+<p>项目中 <code>evaluate_current_estimation_batch.m</code> 提供了验证框架：</p>
+
+<pre><code class="language-matlab">% 对验证集数据
+for each session_data.csv:
+    1. 读取 q_meas, dq_meas, i_meas
+    2. 用辨识参数计算 i_est = f(q, dq, ddq_est)
+    3. 计算误差:
+       RMSE = sqrt(mean((i_est - i_meas).^2))
+       MAE  = mean(abs(i_est - i_meas))
+       MaxAbs = max(abs(i_est - i_meas))
+    4. 生成诊断图 (时序对比 + 误差分布)
+</code></pre>
+
+<p><strong>验收标准建议</strong>：</p>
+<ul>
+  <li>RMSE &lt; 1A (对于典型 UR10 操作)</li>
+  <li>MAE &lt; 0.5A</li>
+  <li>误差应无系统性偏差 (残差白噪声)</li>
+</ul>
+
+<h3 id="step5">步骤 5: MATLAB Coder 生成 C++ 并部署</h3>
+
+<p>完整动力学辨识完成后，用 MATLAB Coder 生成 C++ 代码并替换 capsule 中的对应文件：</p>
+
+<pre><code class="language-matlab">% MATLAB Coder 配置
+cfg = coder.config('lib');
+cfg.TargetLang = 'C++';
+cfg.GenerateExampleMain = 'DoNotGenerate';
+
+% 对每个辨识得到的函数生成 C++
+codegen -config cfg getInertiaCurrents -args {zeros(6,1)} -o getInertiaCurrents
+codegen -config cfg getCoriolisCurrents -args {zeros(6,1),zeros(6,1)} -o getCoriolisCurrents
+% ... 依次生成 8 个函数 ...
+</code></pre>
+
+<p>然后将生成的 <code>.cpp</code> 和 <code>.h</code> 文件复制到 <code>ur10_inverse_dynamics_solver/</code> 并重新编译：</p>
+
+<pre><code class="language-bash">cd ros2_workspace
+colcon build --packages-select ur10_inverse_dynamics_solver
+colcon test --packages-select ur10_inverse_dynamics_solver  # 验证</code></pre>
+
+<h2 id="summary-table">5. 辨识需求总览表</h2>
+
+<table>
+<tr><th>场景</th><th>需要辨识?</th><th>使用什么</th></tr>
+<tr>
+  <td>同一台 UR10, 需要前馈力矩控制</td>
+  <td><span class="tag green">不需要</span></td>
+  <td>直接使用 capsule 中的 8 个 C++ 函数 + Sigmoid 摩擦 + 电机增益</td>
+</tr>
+<tr>
+  <td>同一台 UR10, 仅需简单电流估计</td>
+  <td><span class="tag orange">需要辨识线性模型</span></td>
+  <td>最小二乘辨识 bias/kq/kdq/kddq; 或用 capsule 完整模型替代</td>
+</tr>
+<tr>
+  <td>换用其他 UR 系列 (UR5/UR3)</td>
+  <td><span class="tag red">需要完整重辨识</span></td>
+  <td>复现 Symbolic → Coder 管道; 可复用接口架构</td>
+</tr>
+<tr>
+  <td>换用非 UR 机械臂</td>
+  <td><span class="tag red">需要完整重辨识</span></td>
+  <td>复现整个流程; 抽象基类和 pluginlib 架构可复用</td>
+</tr>
+<tr>
+  <td>更换末端工具/负载</td>
+  <td><span class="tag green">不需要</span></td>
+  <td>仅修改 YAML 配置中的 mass/COM/inertia 参数</td>
+</tr>
+</table>
+
+  </div>
+  <footer class="page-footer">
+    <a href="../%E5%87%BD%E6%95%B0%E8%AF%A6%E8%A7%A3/index.html">← 函数实现详解</a>
+    <a href="../%E8%AE%BA%E6%96%87%E6%8C%87%E5%AF%BC/index.html">下一章: 论文写作指导 →</a>
+  </footer>
+</main>
+
+<script>
+(function(){
+var tocContainer=document.getElementById('toc');
+var mainContent=document.querySelector('.main-content');
+if(tocContainer&&mainContent){
+var headings=mainContent.querySelectorAll('h2,h3');
+if(headings.length>1){
+var tocTitle=document.createElement('h4');tocTitle.textContent='目录';tocContainer.appendChild(tocTitle);
+headings.forEach(function(h,i){
+var id=h.id||('section-'+i);h.id=id;
+var link=document.createElement('a');link.href='#'+id;link.textContent=h.textContent;
+link.className=h.tagName==='H3'?'toc-h3':'';
+tocContainer.appendChild(link);
+});
+var observer=new IntersectionObserver(function(entries){
+entries.forEach(function(entry){
+var id=entry.target.id;
+var tocLink=tocContainer.querySelector('a[href="#'+id+'"]');
+if(tocLink){if(entry.isIntersecting){
+tocContainer.querySelectorAll('a.visible').forEach(function(a){a.classList.remove('visible');});
+tocLink.classList.add('visible');
+}}});
+},{rootMargin:'-80px 0px -70% 0px',threshold:0});
+headings.forEach(function(h){observer.observe(h);});
+}}
+document.querySelectorAll('a[href^="http"]').forEach(function(a){a.setAttribute('target','_blank');a.setAttribute('rel','noopener noreferrer');});
+})();
+</script>
+</body>
+</html>

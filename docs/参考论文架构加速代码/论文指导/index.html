@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>论文写作指导 — 参考论文架构加速代码</title>
+  <style>
+:root {
+  --bg-primary: #0d1117; --bg-secondary: #161b22; --bg-card: #1c2333;
+  --bg-code: #0d1117; --text-primary: #e6edf3; --text-secondary: #8b949e;
+  --text-muted: #6e7681; --accent: #58a6ff; --accent-green: #3fb950;
+  --accent-orange: #d29922; --accent-purple: #a371f7; --accent-red: #f85149;
+  --border: #30363d; --shadow: 0 2px 8px rgba(0,0,0,0.4); --radius: 8px;
+  --sidebar-width: 260px; --toc-width: 220px;
+  --font-mono: 'JetBrains Mono','Fira Code','Cascadia Code','Consolas',monospace;
+  --font-sans: -apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans SC',sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; font-size: 15px; }
+body { font-family: var(--font-sans); background: var(--bg-primary); color: var(--text-primary); line-height: 1.7; min-height: 100vh; }
+.sidebar { position: fixed; top: 0; left: 0; width: var(--sidebar-width); height: 100vh; background: var(--bg-secondary); border-right: 1px solid var(--border); overflow-y: auto; z-index: 100; transition: transform 0.3s ease; padding-bottom: 2rem; }
+.sidebar-header { padding: 1.5rem 1.2rem 1rem; border-bottom: 1px solid var(--border); margin-bottom: 0.5rem; }
+.sidebar-header h2 { font-size: 1.15rem; color: var(--accent); letter-spacing: 0.5px; }
+.sidebar-header .subtitle { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem; }
+.nav-list { list-style: none; padding: 0 0.5rem; }
+.nav-list li { margin: 0; }
+.nav-list li a { display: block; padding: 0.45rem 0.8rem; color: var(--text-secondary); text-decoration: none; border-radius: 6px; font-size: 0.88rem; transition: background 0.15s, color 0.15s; }
+.nav-list li a:hover { background: rgba(88,166,255,0.08); color: var(--text-primary); }
+.nav-list li.active a { background: rgba(88,166,255,0.15); color: var(--accent); font-weight: 600; }
+.nav-section { padding: 0.6rem 0.8rem 0.2rem; font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); letter-spacing: 1px; font-weight: 700; }
+.content { margin-left: var(--sidebar-width); padding: 2rem 3rem; max-width: calc(100% - var(--sidebar-width) - var(--toc-width)); min-height: 100vh; }
+.main-content { max-width: 900px; }
+.toc { position: fixed; right: 1.5rem; top: 2rem; width: var(--toc-width); max-height: calc(100vh - 4rem); overflow-y: auto; font-size: 0.8rem; border-left: 1px solid var(--border); padding-left: 1rem; }
+.toc h4 { color: var(--text-secondary); margin-bottom: 0.5rem; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.5px; }
+.toc a { display: block; color: var(--text-muted); text-decoration: none; padding: 0.15rem 0; transition: color 0.15s; }
+.toc a:hover, .toc a.visible { color: var(--accent); }
+h1 { font-size: 2rem; margin-bottom: 0.5rem; color: var(--text-primary); border-bottom: 2px solid var(--border); padding-bottom: 0.5rem; }
+h2 { font-size: 1.5rem; margin: 2.5rem 0 1rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+h3 { font-size: 1.2rem; margin: 1.8rem 0 0.8rem; color: var(--text-primary); }
+h4 { font-size: 1rem; margin: 1.2rem 0 0.5rem; color: var(--text-secondary); }
+p { margin: 0.8rem 0; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+ul, ol { margin: 0.5rem 0 0.5rem 1.5rem; }
+li { margin: 0.25rem 0; }
+code { font-family: var(--font-mono); font-size: 0.88em; background: var(--bg-code); padding: 0.15em 0.4em; border-radius: 4px; border: 1px solid var(--border); }
+pre { background: var(--bg-code); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.2rem; overflow-x: auto; margin: 1rem 0; font-size: 0.82rem; line-height: 1.55; }
+pre code { background: none; border: none; padding: 0; font-size: inherit; }
+table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.88rem; }
+thead { background: var(--bg-card); }
+th { text-align: left; padding: 0.6rem 0.8rem; font-weight: 600; color: var(--accent); border-bottom: 2px solid var(--border); }
+td { padding: 0.5rem 0.8rem; border-bottom: 1px solid var(--border); }
+tr:hover td { background: rgba(88,166,255,0.04); }
+.notice { border-left: 4px solid var(--accent); background: rgba(88,166,255,0.06); padding: 0.8rem 1rem; margin: 1rem 0; border-radius: 0 var(--radius) var(--radius) 0; font-size: 0.9rem; }
+.notice.warn { border-color: var(--accent-orange); background: rgba(210,153,34,0.06); }
+.notice.info { border-color: var(--accent-green); background: rgba(63,185,80,0.06); }
+.tag { display: inline-block; padding: 0.15rem 0.5rem; background: rgba(88,166,255,0.12); color: var(--accent); border-radius: 12px; font-size: 0.75rem; margin: 0.1rem; }
+.tag.green { background: rgba(63,185,80,0.12); color: var(--accent-green); }
+.tag.purple { background: rgba(163,113,247,0.12); color: var(--accent-purple); }
+.page-footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--border); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
+.page-footer a { color: var(--accent); text-decoration: none; font-size: 0.9rem; padding: 0.4rem 0; }
+@media (max-width: 1200px) { .toc { display: none; } .content { max-width: calc(100% - var(--sidebar-width)); } }
+@media (max-width: 768px) { :root { font-size: 14px; } .sidebar { transform: translateX(-100%); } .sidebar.open { transform: translateX(0); } .content { margin-left: 0; max-width: 100%; padding: 1.2rem; } }
+  </style>
+  <script>MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']]},svg:{fontCache:'global'}};</script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script>document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});</script>
+</head>
+<body>
+
+<nav id="sidebar" class="sidebar">
+  <div class="sidebar-header">
+    <h2>参考论文 — 架构加速</h2>
+    <div class="subtitle">创新点与代码实现指南</div>
+  </div>
+  <ul class="nav-list">
+    <li><a href="../index.html">创新点总览</a></li>
+    <li class="nav-section">详细文档</li>
+    <li><a href="../%E5%87%BD%E6%95%B0%E8%AF%A6%E8%A7%A3/index.html">函数实现详解</a></li>
+    <li><a href="../%E8%BE%A8%E8%AF%86%E6%B5%81%E7%A8%8B/index.html">系统辨识流程</a></li>
+    <li class="active"><a href="index.html">论文写作指导</a></li>
+  </ul>
+</nav>
+
+<main id="content" class="content">
+  <div id="toc" class="toc"></div>
+  <div class="main-content">
+
+<h1>论文写作指导</h1>
+
+<div style="text-align:center;padding:1.5rem 0;">
+  <p style="color:var(--text-secondary);font-size:1.05rem;">
+    如何将本仓库的内容转化为可发表的学术论文
+  </p>
+</div>
+
+<h2 id="positioning">1. 创新点定位</h2>
+
+<p>在论文中，你需要回答 3 个核心问题：<strong>解决了什么问题 → 为什么现有方法不够好 → 你的方法如何做到更好</strong>。</p>
+
+<h3>1.1 问题陈述 (Problem Statement)</h3>
+
+<ul>
+  <li><strong>现有问题</strong>: 工业机器人 (如 UR10) 的逆动力学计算依赖递归 Newton-Euler 算法 (KDL, Pinocchio, RBDL)，每次调用需要递归遍历整个运动链，计算开销大，不适合 kHz 级实时控制</li>
+  <li><strong>参数鸿沟</strong>: CAD 模型提供的惯性参数与实际机器人存在偏差，影响前馈控制精度</li>
+  <li><strong>摩擦建模不足</strong>: 经典库仑+粘性摩擦在零速处不连续，导致控制抖动</li>
+</ul>
+
+<h3>1.2 你的贡献 (Contributions)</h3>
+
+<ol>
+  <li><strong>提出了一种基于 MATLAB 系统辨识 → 闭式 C++ 代码自动生成的逆动力学加速方法</strong>，将 Lagrange 方程的符号闭式解展开为无递归、无循环的顺序 C++ 代码</li>
+  <li><strong>建立了电流级双寄存器动力学架构</strong>，将机械臂本体动力学 (电流域) 与负载动力学 (力矩域) 解耦，支持运行时的负载动态配置</li>
+  <li><strong>引入了 Sigmoid 非线性摩擦模型</strong>，消除了零速不连续性，提高了低速段的力矩预测精度</li>
+  <li>(可选) <strong>在 UR10 平台上验证了方法的有效性</strong>，与 ROS2 标准 KDL 求解器进行了计算效率和精度的对比</li>
+</ol>
+
+<h2 id="experiments">2. 需要补充的实验</h2>
+
+<p>以下实验是论文必需的验证环节，<strong>当前代码库中尚未完成</strong>：</p>
+
+<h3>2.1 计算效率对比实验 (必须)</h3>
+
+<table>
+<tr><th>实验</th><th>方法</th><th>预期结果</th></tr>
+<tr>
+  <td>单次求解耗时对比</td>
+  <td>同一组 q/dq/ddq 下，重复 10,000 次取平均。对比 MATLAB 生成的 C++、KDL、Pinocchio</td>
+  <td>闭式 C++ 比 KDL 快 5~10×</td>
+</tr>
+<tr>
+  <td>求解时间抖动</td>
+  <td>不同关节构型下求解时间的标准差</td>
+  <td>闭式 C++ 标准差远小于 KDL (无递归导致的时间不确定)</td>
+</tr>
+<tr>
+  <td>编译产物大小</td>
+  <td>对比 .so 文件大小和编译时间</td>
+  <td>闭式 C++ 编译产物更大但运行时更快</td>
+</tr>
+</table>
+
+<h3>2.2 力矩预测精度实验 (必须)</h3>
+
+<table>
+<tr><th>实验</th><th>方法</th><th>对比指标</th></tr>
+<tr>
+  <td>与实测力矩对比</td>
+  <td>运行测试轨迹，记录 UR10 驱动反馈的实际力矩 vs 模型预测力矩</td>
+  <td>RMSE, MAE, MaxAbs (逐关节)</td>
+</tr>
+<tr>
+  <td>与 KDL 理论值对比</td>
+  <td>比较辨识模型 vs CAD 理论模型的预测差异</td>
+  <td>各动力学分量 (H, C, G) 的相对误差</td>
+</tr>
+<tr>
+  <td>摩擦模型消融实验</td>
+  <td>有/无 Sigmoid 摩擦模型的力矩预测对比</td>
+  <td>低速段 (&lt; 0.1 rad/s) 的 RMSE 改进</td>
+</tr>
+</table>
+
+<h3>2.3 前馈控制轨迹跟踪实验 (加分)</h3>
+
+<table>
+<tr><th>实验</th><th>方法</th><th>对比指标</th></tr>
+<tr>
+  <td>有/无前馈的跟踪精度</td>
+  <td>UR10 运行同一轨迹，对比纯反馈 (PID) vs 反馈+前馈 (PID + 计算力矩)</td>
+  <td>跟踪误差 RMSE, 最大误差</td>
+</tr>
+<tr>
+  <td>不同负载下的鲁棒性</td>
+  <td>添加 0.5/1.0/2.0 kg 负载，比较前馈模型的自适应能力</td>
+  <td>负载变化后的跟踪误差退化</td>
+</tr>
+</table>
+
+<h2 id="structure">3. 论文结构建议</h2>
+
+<h3>推荐框架 (以创新点 1+2+3 为核心)</h3>
+
+<table>
+<tr><th>章节</th><th>页数</th><th>内容</th></tr>
+<tr><td><strong>Abstract</strong></td><td>0.5</td><td>一句话问题 + 一句话方法 + 一句话结果</td></tr>
+<tr><td><strong>I. Introduction</strong></td><td>1.5</td><td>逆动力学在实时控制中的作用; 现有递归算法的局限; MATLAB 辨识到 C++ 部署的鸿沟; 本文贡献列表</td></tr>
+<tr><td><strong>II. Related Work</strong></td><td>1.5</td><td>KDL/Pinocchio/RBDL 递归方法综述; 基于 CAD 参数的辨识; 摩擦模型 (库仑→Lugre→Sigmoid); MATLAB Coder 代码生成相关工作</td></tr>
+<tr><td><strong>III. Methodology</strong></td><td>3~4</td><td>
+  A. 电流级 Lagrange 动力学符号推导<br>
+  B. MATLAB Coder 闭式展开代码生成<br>
+  C. Sigmoid 摩擦模型公式与参数辨识<br>
+  D. 双寄存器架构及 19 维负载回归<br>
+  E. ROS2 pluginlib 部署架构
+</td></tr>
+<tr><td><strong>IV. Experiments</strong></td><td>3</td><td>
+  A. 实验平台 (UR10 + ROS2 Humble)<br>
+  B. 计算效率对比 (KDL vs 闭式 C++)<br>
+  C. 力矩预测精度 (vs 实测力矩, vs KDL)<br>
+  D. 前馈控制轨迹跟踪实验<br>
+  E. 摩擦模型消融实验
+</td></tr>
+<tr><td><strong>V. Discussion</strong></td><td>1</td><td>代码膨胀的代价; 辨识工况覆盖性; 通用性 vs 专用性的权衡; 局限与未来工作</td></tr>
+<tr><td><strong>VI. Conclusion</strong></td><td>0.5</td><td>总结贡献 + 未来方向 (多机器人扩展, 在线自适应辨识)</td></tr>
+</table>
+
+<h2 id="journals">4. 投稿方向建议</h2>
+
+<h3>第一梯队 (高影响力)</h3>
+<table>
+<tr><th>期刊/会议</th><th>定位</th><th>要求</th></tr>
+<tr><td><strong>IEEE RA-L</strong> + <strong>ICRA/IROS</strong></td><td>机器人领域顶刊+顶会组合</td><td>需要完整的计算效率 + 控制实验验证; 强调方法的新颖性</td></tr>
+<tr><td><strong>IEEE T-RO</strong></td><td>机器人领域顶刊</td><td>需要非常充分的实验和理论分析; 审稿周期长 (12~18 月)</td></tr>
+</table>
+
+<h3>第二梯队 (稳扎稳打)</h3>
+<table>
+<tr><th>期刊/会议</th><th>定位</th></tr>
+<tr><td><strong>Robotics and Autonomous Systems</strong> (Elsevier)</td><td>机器人系统与方法; 适合工程实现类论文</td></tr>
+<tr><td><strong>Journal of Intelligent & Robotic Systems</strong> (Springer)</td><td>智能机器人系统; 接受实现细节丰富的论文</td></tr>
+<tr><td><strong>IEEE CASE</strong> (Automation Science and Engineering)</td><td>自动化工程; 适合工业应用导向</td></tr>
+</table>
+
+<h3>第三梯队 (应用导向)</h3>
+<table>
+<tr><th>期刊/会议</th><th>定位</th></tr>
+<tr><td><strong>Automation in Construction</strong> (Elsevier)</td><td>建筑自动化; 如果铲取应用是核心场景</td></tr>
+<tr><td><strong>Mechatronics</strong> (Elsevier)</td><td>机电一体化; 适合软硬件结合的工作</td></tr>
+<tr><td><strong>IEEE AIM</strong> (Advanced Intelligent Mechatronics)</td><td>智能机电; 接受实现导向论文</td></tr>
+</table>
+
+<h2 id="related-work">5. 需要引用的关键文献方向</h2>
+
+<ul>
+  <li><strong>递归逆动力学算法</strong>: Featherstone (2008) <em>Rigid Body Dynamics Algorithms</em>; Carpentier et al. (2019) Pinocchio library</li>
+  <li><strong>KDL 与 ROS2 运动学</strong>: Bruyninckx (2001) <em>Open Robot Control Software</em>; Coleman et al. (2014) <em>Trac-IK</em></li>
+  <li><strong>机器人动力学参数辨识</strong>: Swevers et al. (1997) <em>Optimal robot excitation</em>; Gautier & Khalil (1988) <em>Direct calculation of minimum set</em></li>
+  <li><strong>摩擦建模</strong>: de Wit et al. (1995) <em>Lugre friction model</em>; Olsson et al. (1998) <em>GMS friction model</em></li>
+  <li><strong>MATLAB 代码生成</strong>: MATLAB Coder documentation; Symbolic Math Toolbox code generation examples</li>
+  <li><strong>UR10 动力学辨识</strong>: 引用本仓库 capsule-8515919 的原始论文 (Petrone & Ferrentino, UNISA)</li>
+</ul>
+
+<h2 id="checklist">6. 论文写作检查清单</h2>
+
+<h3>方法论部分</h3>
+<ul>
+  <li>你是否清楚说明了<b>为什么</b>电流级建模比力矩级更好？</li>
+  <li>你是否解释了闭式展开<b>为什么</b>比递归更快 (CPU 流水线, 无分支预测失败)？</li>
+  <li>你是否对比了 Sigmoid vs 经典库仑摩擦的数值特性？</li>
+  <li>你是否说明了双寄存器架构的工程优势 (解耦, 可在线配置)？</li>
+</ul>
+
+<h3>实验部分</h3>
+<ul>
+  <li>你是否包含了计算时间的<b>统计分布</b> (均值 + 标准差), 而非仅均值？</li>
+  <li>你是否做了<b>消融实验</b> (有/无你的核心贡献)？</li>
+  <li>你是否在多个负载条件下测试了鲁棒性？</li>
+  <li>你是否讨论了方法的<b>局限性</b> (代码膨胀, 仅 UR10, 辨识依赖)？</li>
+</ul>
+
+<div class="notice info">
+  <strong>写作建议</strong>: 论文的<b>核心卖点</b>是"从 MATLAB 辨识到 C++ 部署的自动化管道"这一技术路线的完整性和实用性。很多论文展示了辨识方法，很多论文展示了控制算法，但<b>很少有人展示从辨识到代码生成再到实时部署的完整闭环</b>。这是你最大的区分度。
+</div>
+
+<h2 id="related-docs">7. 相关文档</h2>
+
+<ul>
+  <li><a href="../index.html">创新点总览</a> — 了解完整的创新点图谱和技术链路</li>
+  <li><a href="../%E5%87%BD%E6%95%B0%E8%AF%A6%E8%A7%A3/index.html">函数实现详解</a> — 每个函数的具体实现和数学含义</li>
+  <li><a href="../%E8%BE%A8%E8%AF%86%E6%B5%81%E7%A8%8B/index.html">系统辨识流程</a> — 辨识的具体步骤和代码</li>
+  <li><a href="../%E9%80%86%E5%8A%A8%E5%8A%9B%E5%AD%A6/index.html">逆动力学文档</a> — 完整的逆动力学架构分析</li>
+  <li><a href="../%E7%94%B5%E6%B5%81%E6%A8%A1%E5%9E%8B%E8%BE%A8%E8%AF%86/index.html">电流模型辨识文档</a> — 辨识方法的技术细节</li>
+</ul>
+
+  </div>
+  <footer class="page-footer">
+    <a href="../%E8%BE%A8%E8%AF%86%E6%B5%81%E7%A8%8B/index.html">← 系统辨识流程</a>
+    <a href="../index.html">返回创新点总览 →</a>
+  </footer>
+</main>
+
+<script>
+(function(){
+var tocContainer=document.getElementById('toc');
+var mainContent=document.querySelector('.main-content');
+if(tocContainer&&mainContent){
+var headings=mainContent.querySelectorAll('h2,h3');
+if(headings.length>1){
+var tocTitle=document.createElement('h4');tocTitle.textContent='目录';tocContainer.appendChild(tocTitle);
+headings.forEach(function(h,i){
+var id=h.id||('section-'+i);h.id=id;
+var link=document.createElement('a');link.href='#'+id;link.textContent=h.textContent;
+link.className=h.tagName==='H3'?'toc-h3':'';
+tocContainer.appendChild(link);
+});
+var observer=new IntersectionObserver(function(entries){
+entries.forEach(function(entry){
+var id=entry.target.id;
+var tocLink=tocContainer.querySelector('a[href="#'+id+'"]');
+if(tocLink){if(entry.isIntersecting){
+tocContainer.querySelectorAll('a.visible').forEach(function(a){a.classList.remove('visible');});
+tocLink.classList.add('visible');
+}}});
+},{rootMargin:'-80px 0px -70% 0px',threshold:0});
+headings.forEach(function(h){observer.observe(h);});
+}}
+document.querySelectorAll('a[href^="http"]').forEach(function(a){a.setAttribute('target','_blank');a.setAttribute('rel','noopener noreferrer');});
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>创新点总览 — 参考论文架构加速代码</title>
+  <style>
+:root {
+  --bg-primary: #0d1117; --bg-secondary: #161b22; --bg-card: #1c2333;
+  --bg-code: #0d1117; --text-primary: #e6edf3; --text-secondary: #8b949e;
+  --text-muted: #6e7681; --accent: #58a6ff; --accent-green: #3fb950;
+  --accent-orange: #d29922; --accent-purple: #a371f7; --accent-red: #f85149;
+  --border: #30363d; --shadow: 0 2px 8px rgba(0,0,0,0.4); --radius: 8px;
+  --sidebar-width: 260px; --toc-width: 220px;
+  --font-mono: 'JetBrains Mono','Fira Code','Cascadia Code','Consolas',monospace;
+  --font-sans: -apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans SC',sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; font-size: 15px; }
+body { font-family: var(--font-sans); background: var(--bg-primary); color: var(--text-primary); line-height: 1.7; min-height: 100vh; }
+.sidebar { position: fixed; top: 0; left: 0; width: var(--sidebar-width); height: 100vh; background: var(--bg-secondary); border-right: 1px solid var(--border); overflow-y: auto; z-index: 100; transition: transform 0.3s ease; padding-bottom: 2rem; }
+.sidebar-header { padding: 1.5rem 1.2rem 1rem; border-bottom: 1px solid var(--border); margin-bottom: 0.5rem; }
+.sidebar-header h2 { font-size: 1.15rem; color: var(--accent); letter-spacing: 0.5px; }
+.sidebar-header .subtitle { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem; }
+.nav-list { list-style: none; padding: 0 0.5rem; }
+.nav-list li { margin: 0; }
+.nav-list li a { display: block; padding: 0.45rem 0.8rem; color: var(--text-secondary); text-decoration: none; border-radius: 6px; font-size: 0.88rem; transition: background 0.15s, color 0.15s; }
+.nav-list li a:hover { background: rgba(88,166,255,0.08); color: var(--text-primary); }
+.nav-list li.active a { background: rgba(88,166,255,0.15); color: var(--accent); font-weight: 600; }
+.nav-section { padding: 0.6rem 0.8rem 0.2rem; font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); letter-spacing: 1px; font-weight: 700; }
+.content { margin-left: var(--sidebar-width); padding: 2rem 3rem; max-width: calc(100% - var(--sidebar-width) - var(--toc-width)); min-height: 100vh; }
+.main-content { max-width: 900px; }
+.toc { position: fixed; right: 1.5rem; top: 2rem; width: var(--toc-width); max-height: calc(100vh - 4rem); overflow-y: auto; font-size: 0.8rem; border-left: 1px solid var(--border); padding-left: 1rem; }
+.toc h4 { color: var(--text-secondary); margin-bottom: 0.5rem; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.5px; }
+.toc a { display: block; color: var(--text-muted); text-decoration: none; padding: 0.15rem 0; transition: color 0.15s; }
+.toc a:hover, .toc a.visible { color: var(--accent); }
+h1 { font-size: 2rem; margin-bottom: 0.5rem; color: var(--text-primary); border-bottom: 2px solid var(--border); padding-bottom: 0.5rem; }
+h2 { font-size: 1.5rem; margin: 2.5rem 0 1rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+h3 { font-size: 1.2rem; margin: 1.8rem 0 0.8rem; color: var(--text-primary); }
+h4 { font-size: 1rem; margin: 1.2rem 0 0.5rem; color: var(--text-secondary); }
+p { margin: 0.8rem 0; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+ul, ol { margin: 0.5rem 0 0.5rem 1.5rem; }
+li { margin: 0.25rem 0; }
+code { font-family: var(--font-mono); font-size: 0.88em; background: var(--bg-code); padding: 0.15em 0.4em; border-radius: 4px; border: 1px solid var(--border); }
+pre { background: var(--bg-code); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.2rem; overflow-x: auto; margin: 1rem 0; font-size: 0.82rem; line-height: 1.55; }
+pre code { background: none; border: none; padding: 0; font-size: inherit; }
+table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.88rem; }
+thead { background: var(--bg-card); }
+th { text-align: left; padding: 0.6rem 0.8rem; font-weight: 600; color: var(--accent); border-bottom: 2px solid var(--border); }
+td { padding: 0.5rem 0.8rem; border-bottom: 1px solid var(--border); }
+tr:hover td { background: rgba(88,166,255,0.04); }
+.card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.2rem; margin: 1.5rem 0; }
+.card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; transition: border-color 0.2s, transform 0.15s; text-decoration: none; color: var(--text-primary); display: block; }
+.card:hover { border-color: var(--accent); transform: translateY(-2px); text-decoration: none; }
+.card h3 { color: var(--accent); margin: 0 0 0.5rem; font-size: 1.1rem; }
+.card p { color: var(--text-secondary); font-size: 0.88rem; margin: 0; }
+.notice { border-left: 4px solid var(--accent); background: rgba(88,166,255,0.06); padding: 0.8rem 1rem; margin: 1rem 0; border-radius: 0 var(--radius) var(--radius) 0; font-size: 0.9rem; }
+.notice.warn { border-color: var(--accent-orange); background: rgba(210,153,34,0.06); }
+.notice.info { border-color: var(--accent-green); background: rgba(63,185,80,0.06); }
+.tag { display: inline-block; padding: 0.15rem 0.5rem; background: rgba(88,166,255,0.12); color: var(--accent); border-radius: 12px; font-size: 0.75rem; margin: 0.1rem; }
+.tag.green { background: rgba(63,185,80,0.12); color: var(--accent-green); }
+.tag.orange { background: rgba(210,153,34,0.12); color: var(--accent-orange); }
+.tag.purple { background: rgba(163,113,247,0.12); color: var(--accent-purple); }
+.tag.red { background: rgba(248,81,73,0.12); color: var(--accent-red); }
+.page-footer { margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--border); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
+.page-footer a { color: var(--accent); text-decoration: none; font-size: 0.9rem; padding: 0.4rem 0; }
+@media (max-width: 1200px) { .toc { display: none; } .content { max-width: calc(100% - var(--sidebar-width)); } }
+@media (max-width: 768px) { :root { font-size: 14px; } .sidebar { transform: translateX(-100%); } .sidebar.open { transform: translateX(0); } .content { margin-left: 0; max-width: 100%; padding: 1.2rem; } .card-grid { grid-template-columns: 1fr; } }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>mermaid.initialize({startOnLoad:true, theme:'dark', themeVariables:{primaryColor:'#1c2333',primaryTextColor:'#e6edf3',primaryBorderColor:'#30363d',lineColor:'#58a6ff',secondaryColor:'#161b22',tertiaryColor:'#0d1117'}});</script>
+  <script>MathJax={tex:{inlineMath:[['$','$'],['\\(','\\)']]},svg:{fontCache:'global'}};</script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script>document.addEventListener('DOMContentLoaded',function(){hljs.highlightAll();});</script>
+</head>
+<body>
+
+<nav id="sidebar" class="sidebar">
+  <div class="sidebar-header">
+    <h2>参考论文 — 架构加速</h2>
+    <div class="subtitle">创新点与代码实现指南</div>
+  </div>
+  <ul class="nav-list">
+    <li class="active"><a href="index.html">创新点总览</a></li>
+    <li class="nav-section">详细文档</li>
+    <li><a href="%E5%87%BD%E6%95%B0%E8%AF%A6%E8%A7%A3/index.html">函数实现详解</a></li>
+    <li><a href="%E8%BE%A8%E8%AF%86%E6%B5%81%E7%A8%8B/index.html">系统辨识流程</a></li>
+    <li><a href="%E8%AE%BA%E6%96%87%E6%8C%87%E5%AF%BC/index.html">论文写作指导</a></li>
+    <li class="nav-section">原有文档</li>
+    <li><a href="../%E6%AD%A3%E8%BF%90%E5%8A%A8%E5%AD%A6/index.html">正运动学</a></li>
+    <li><a href="../%E9%80%86%E8%BF%90%E5%8A%A8%E5%AD%A6/index.html">逆运动学</a></li>
+    <li><a href="../%E9%80%86%E5%8A%A8%E5%8A%9B%E5%AD%A6/index.html">逆动力学</a></li>
+    <li><a href="../%E7%94%B5%E6%B5%81%E6%A8%A1%E5%9E%8B%E8%BE%A8%E8%AF%86/index.html">电流模型辨识</a></li>
+  </ul>
+</nav>
+
+<main id="content" class="content">
+  <div id="toc" class="toc"></div>
+  <div class="main-content">
+
+<h1>创新点总览</h1>
+
+<div style="text-align:center;padding:1.5rem 0;">
+  <p style="color:var(--text-secondary);font-size:1.05rem;">
+    基于 MATLAB 系统辨识与自动代码生成的 UR10 逆动力学实时求解器
+  </p>
+</div>
+
+<h2 id="pipeline">1. 核心技术链路</h2>
+
+<p>本项目最大的创新在于建立了一条<b>从 MATLAB 原型辨识到 C++ 生产部署的完整自动化管道</b>：</p>
+
+<div class="mermaid">
+graph TB
+    subgraph Phase1["阶段一: 系统辨识 (MATLAB)"]
+        A1["UR10 实物数据采集<br/>q, dq, ddq, i_motor"]
+        A2["Symbolic Math Toolbox<br/>Lagrange 方程符号推导"]
+        A3["参数辨识<br/>最小二乘 → 动力学系数"]
+    end
+    subgraph Phase2["阶段二: 代码生成 (MATLAB Coder)"]
+        B1["符号闭式解展开<br/>~26,000 行 C++ 代码"]
+        B2["8 个动力学函数<br/>无递归/无循环/无分支"]
+    end
+    subgraph Phase3["阶段三: ROS2 部署"]
+        C1["pluginlib 插件架构<br/>运行时动态加载"]
+        C2["实时前馈力矩控制<br/>τ = K·i + τ_friction + τ_payload"]
+    end
+    Phase1 --> Phase2 --> Phase3
+</div>
+
+<h2 id="reusable">2. 可直接复用的模块（无需重新辨识）</h2>
+
+<p>以下模块的参数已经过系统辨识，<strong>可直接编译部署到 ROS2 Humble 环境</strong>：</p>
+
+<table>
+<tr><th>模块</th><th>位置</th><th>状态</th><th>说明</th></tr>
+<tr>
+  <td><strong>8 个 MATLAB 生成的 C++ 函数</strong></td>
+  <td><code>test/capsule-8515919/code/ur10_inverse_dynamics_solver/src/*.cpp</code></td>
+  <td><span class="tag green">可直接用</span></td>
+  <td>闭式动力学求解器，合计 ~26,000 行，仅依赖 std::cos/sin</td>
+</tr>
+<tr>
+  <td><strong>Sigmoid 摩擦模型</strong></td>
+  <td><code>ur10_inverse_dynamics_solver.cpp</code> 第 133~183 行</td>
+  <td><span class="tag green">可直接用</span></td>
+  <td>30 个参数（每关节 5 个），非线性平滑摩擦</td>
+</tr>
+<tr>
+  <td><strong>电机增益 K1~K6</strong></td>
+  <td><code>ur10_inverse_dynamics_solver.h</code> 第 24~29 行</td>
+  <td><span class="tag green">可直接用</span></td>
+  <td>τ = K·i 转换矩阵，硬件相关</td>
+</tr>
+<tr>
+  <td><strong>pluginlib 插件架构</strong></td>
+  <td><code>test/capsule-8515919/code/</code> 全部</td>
+  <td><span class="tag green">可直接用</span></td>
+  <td>KDL（仿真）与 UR10（真机）求解器可运行时切换</td>
+</tr>
+<tr>
+  <td><strong>19 维负载回归矩阵</strong></td>
+  <td><code>getPayload*RegressionMatrix*.cpp</code></td>
+  <td><span class="tag green">可直接用</span></td>
+  <td>支持运行时通过 ROS2 参数配置负载, 无需重编译</td>
+</tr>
+<tr>
+  <td><strong>抽象基类接口</strong></td>
+  <td><code>inverse_dynamics_solver.h</code></td>
+  <td><span class="tag green">可直接用</span></td>
+  <td>6 个纯虚方法, 扩展新机器人只需实现该接口</td>
+</tr>
+</table>
+
+<h2 id="need-id">3. 需要重新辨识的模块</h2>
+
+<table>
+<tr><th>模块</th><th>当前状态</th><th>辨识方法</th><th>难度</th></tr>
+<tr>
+  <td><strong>电流模型系数 (bias, kq, kdq, kddq)</strong></td>
+  <td><span class="tag red">硬编码启发值</span></td>
+  <td>最小二乘线性回归</td>
+  <td><span class="tag orange">低</span></td>
+</tr>
+<tr>
+  <td><strong>完整动力学参数 (惯性/科里奥利/重力)</strong></td>
+  <td><span class="tag green">已辨识 (capsule 中)</span></td>
+  <td>Symbolic Toolbox Lagrange 推导 + 非线性优化</td>
+  <td><span class="tag red">高</span></td>
+</tr>
+<tr>
+  <td><strong>Sigmoid 摩擦参数 (30 个)</strong></td>
+  <td><span class="tag green">已辨识 (capsule 中)</span></td>
+  <td>非线性最小二乘拟合 (Levenberg-Marquardt)</td>
+  <td><span class="tag purple">中</span></td>
+</tr>
+</table>
+
+<div class="notice warn">
+  <strong>关键提示</strong>: capsule-8515919 中的 8 个 C++ 函数已经包含了辨识好的 UR10 动力学系数（惯性、科里奥利、重力参数已嵌入代码常量中）。如果你用的是同一台 UR10 机械臂，<b>这些函数可以直接使用，无需重新辨识</b>。只有当你换用其他机械臂、或发现模型精度不够时，才需要重新走辨识流程。
+</div>
+
+<h2 id="innovation-points">4. 创新点详解</h2>
+
+<div class="card-grid">
+  <a href="%E5%87%BD%E6%95%B0%E8%AF%A6%E8%A7%A3/index.html" class="card">
+    <h3>创新点 1: 闭式动力学 C++ 代码生成</h3>
+    <p>MATLAB Symbolic Toolbox → MATLAB Coder → 无递归/无循环的展开式 C++。比 KDL 递归 Newton-Euler 快一个数量级。</p>
+    <span class="tag purple">核心创新</span>
+  </a>
+  <a href="%E5%87%BD%E6%95%B0%E8%AF%A6%E8%A7%A3/index.html#friction" class="card">
+    <h3>创新点 2: Sigmoid 非线性摩擦模型</h3>
+    <p>5 参数/关节的非线性平滑摩擦，消除零速不连续性。比经典库仑+粘性模型更精确。</p>
+    <span class="tag">算法改进</span>
+  </a>
+  <a href="%E5%87%BD%E6%95%B0%E8%AF%A6%E8%A7%A3/index.html#dual-register" class="card">
+    <h3>创新点 3: 双寄存器解耦架构</h3>
+    <p>机械臂本体动力学（电流级）与负载动力学（力矩级）分离。19 维回归矩阵支持在线负载辨识。</p>
+    <span class="tag green">工程创新</span>
+  </a>
+  <a href="%E8%BE%A8%E8%AF%86%E6%B5%81%E7%A8%8B/index.html" class="card">
+    <h3>创新点 4: 电流级建模</h3>
+    <p>在电机电流层面而非力矩层面建模，直接对标驱动器反馈环。绕过力矩传感器的噪声和延迟。</p>
+    <span class="tag orange">方法论创新</span>
+  </a>
+</div>
+
+<h2 id="code-structure">5. 源代码结构速查</h2>
+
+<pre><code class="language-text">test/capsule-8515919/code/
+├── inverse_dynamics_solver/              [抽象层] 定义插件接口
+│   └── include/.../inverse_dynamics_solver.h    ★ 抽象基类 + 负载参数管理
+├── kdl_inverse_dynamics_solver/          [KDL 实现] 通用仿真求解器
+│   └── src/kdl_inverse_dynamics_solver.cpp      ★ KDL::ChainDynParam 递归算法
+├── ur10_inverse_dynamics_solver/         [UR10 实现] ★ 核心: 高精度专用求解器
+│   ├── include/.../ur10_inverse_dynamics_solver.h   电机增益 + 类定义
+│   ├── src/ur10_inverse_dynamics_solver.cpp         电流→力矩 + Sigmoid 摩擦
+│   ├── src/getInertiaCurrents.cpp         ★ 1,244 行 惯性电流矩阵
+│   ├── src/getCoriolisCurrents.cpp        ★ 3,735 行 科里奥利电流
+│   ├── src/getGravityCurrents.cpp         ★   194 行 重力电流
+│   ├── src/getCurrents.cpp                ★ 4,961 行 总电流
+│   ├── src/getPayloadRegressionMatrix.cpp ★ 8,194 行 负载回归 (最大)
+│   ├── src/getPayloadInertiaRegressionMatrix.cpp    1,189 行
+│   ├── src/getPayloadCoriolisRegressionMatrix.cpp   6,411 行
+│   └── src/getPayloadGravityRegressionMatrix.cpp      151 行
+├── ros_extensions_utilities/             [工具库] ROS2 辅助函数
+└── run.sh                                CI 构建入口 (colcon build → colcon test)
+
+test/virtual/                              [MATLAB 仿真层]
+├── init_virtual_ur10.m                   ★ 参数配置 (电机增益、电流模型系数)
+├── utils/estimate_current_simple.m       线性电流模型: i = b + kq*q + kdq*dq + kddq*ddq
+├── evaluate_current_estimation_batch.m   批量评估脚本 (RMSE/MAE 验证)
+├── create_or_load_virtual_simulink_model.m  Simulink 模型自动构建
+├── build_ur10_virtual_robot.m            UR10 刚体树模型构建 (URDF → rigidBodyTree)
+└── ur10_gui_control_virtual.m            虚拟仿真交互 GUI</code></pre>
+
+<h2 id="quick-start">6. 快速使用指南</h2>
+
+<h3>如果你要在 ROS2 中使用 UR10 逆动力学求解器</h3>
+
+<ol>
+  <li>将 <code>test/capsule-8515919/code/</code> 下的 4 个 ROS2 包复制到你的工作空间 <code>src/</code></li>
+  <li><code>colcon build --packages-select ur10_inverse_dynamics_solver inverse_dynamics_solver ros_extensions_utilities</code></li>
+  <li>在启动文件中加载 UR10 求解器插件: <code>plugin_name:="ur10/InverseDynamicsSolverUR10"</code></li>
+  <li>通过 YAML 配置负载参数 (mass, center_of_mass, inertia_tensor)</li>
+  <li>调用 <code>getTorques(q, dq, ddq)</code> 获取前馈力矩</li>
+</ol>
+
+<h3>如果你需要辨识自己的机械臂模型</h3>
+
+<ol>
+  <li>采集实验数据: 激励轨迹运行 → 记录 q, dq, ddq, i_motor (CSV 格式)</li>
+  <li>MATLAB 中执行最小二乘辨识: <code>coeff = [ones(n,1) q dq ddq] \ i_meas</code></li>
+  <li>如需完整动力学辨识: 使用 Symbolic Toolbox 推导 Lagrange 方程 → 非线性优化拟合系数</li>
+  <li>用 MATLAB Coder 生成 C++ 代码 → 替换 <code>ur10_inverse_dynamics_solver/src/</code> 下的文件</li>
+  <li>重新编译并运行单元测试验证</li>
+</ol>
+
+<h2 id="comparison">7. 与 ROS2 标准方法的对比</h2>
+
+<table>
+<tr><th>方面</th><th>ROS2 标准 (KDL/Pinocchio)</th><th>本项目方法</th></tr>
+<tr><td>算法</td><td>递归 Newton-Euler (RNEA)</td><td><strong>闭式解析展开式</strong></td></tr>
+<tr><td>计算模式</td><td>每次调用递归遍历 6 层</td><td>顺序执行，无递归无循环</td></tr>
+<tr><td>代码量</td><td>~200 行</td><td>~26,000 行 (自动生成)</td></tr>
+<tr><td>参数来源</td><td>CAD/URDF 理论值</td><td><strong>MATLAB 实验系统辨识</strong></td></tr>
+<tr><td>建模层级</td><td>力矩级 τ</td><td><strong>电流级 i</strong>，τ = K·i</td></tr>
+<tr><td>摩擦模型</td><td>无 (KDL) 或简单库仑+粘性</td><td><strong>Sigmoid 平滑模型</strong> (30 参数)</td></tr>
+<tr><td>负载处理</td><td>修改 URDF 重新计算</td><td><strong>线性回归矩阵</strong>: 运行时动态配置</td></tr>
+<tr><td>编译依赖</td><td>KDL + URDF + MoveIt</td><td><strong>仅 std::cos/sin + Eigen3</strong></td></tr>
+<tr><td>通用性</td><td>任意机器人 (需 URDF)</td><td>仅 UR10 (新机器人需重新辨识)</td></tr>
+<tr><td>计算速度</td><td>较慢 (递归 + 动态分配)</td><td>极快 (展开式直接求值, CPU 流水线友好)</td></tr>
+</table>
+
+<h2 id="related">8. 相关文档导航</h2>
+
+<div class="card-grid">
+  <a href="%E5%87%BD%E6%95%B0%E8%AF%A6%E8%A7%A3/index.html" class="card">
+    <h3>函数实现详解 →</h3>
+    <p>8 个 MATLAB 生成函数的签名、数学含义、KDL vs UR10 求解器对比、双寄存器架构详解</p>
+  </a>
+  <a href="%E8%BE%A8%E8%AF%86%E6%B5%81%E7%A8%8B/index.html" class="card">
+    <h3>系统辨识流程 →</h3>
+    <p>数据采集格式、最小二乘辨识方法、非线性 Sigmoid 拟合、验证流程 (RMSE/MAE)</p>
+  </a>
+  <a href="%E8%AE%BA%E6%96%87%E6%8C%87%E5%AF%BC/index.html" class="card">
+    <h3>论文写作指导 →</h3>
+    <p>创新点定位、需要补充的实验、写作框架、投稿方向建议</p>
+  </a>
+</div>
+
+  </div>
+  <footer class="page-footer">
+    <a href="../index.html">← 返回文档首页</a>
+    <a href="%E5%87%BD%E6%95%B0%E8%AF%A6%E8%A7%A3/index.html">下一章: 函数实现详解 →</a>
+  </footer>
+</main>
+
+<script>
+(function(){
+var tocContainer=document.getElementById('toc');
+var mainContent=document.querySelector('.main-content');
+if(tocContainer&&mainContent){
+var headings=mainContent.querySelectorAll('h2,h3');
+if(headings.length>1){
+var tocTitle=document.createElement('h4');tocTitle.textContent='目录';tocContainer.appendChild(tocTitle);
+headings.forEach(function(h,i){
+var id=h.id||('section-'+i);h.id=id;
+var link=document.createElement('a');link.href='#'+id;link.textContent=h.textContent;
+link.className=h.tagName==='H3'?'toc-h3':'';
+tocContainer.appendChild(link);
+});
+var observer=new IntersectionObserver(function(entries){
+entries.forEach(function(entry){
+var id=entry.target.id;
+var tocLink=tocContainer.querySelector('a[href="#'+id+'"]');
+if(tocLink){if(entry.isIntersecting){
+tocContainer.querySelectorAll('a.visible').forEach(function(a){a.classList.remove('visible');});
+tocLink.classList.add('visible');
+}}});
+},{rootMargin:'-80px 0px -70% 0px',threshold:0});
+headings.forEach(function(h){observer.observe(h);});
+}}
+document.querySelectorAll('a[href^="http"]').forEach(function(a){a.setAttribute('target','_blank');a.setAttribute('rel','noopener noreferrer');});
+})();
+</script>
+</body>
+</html>
