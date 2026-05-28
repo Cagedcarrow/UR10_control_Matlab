@@ -7,6 +7,7 @@ test/capsule-8515919/
 **/browse.vc.db
 **/browse.vc.db-shm
 **/browse.vc.db-wal
+.vscode/c_cpp_properties.json
 
 # Ignore image assets/outputs
 *.png

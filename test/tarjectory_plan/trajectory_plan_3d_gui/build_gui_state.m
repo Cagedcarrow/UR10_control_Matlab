@@ -7,7 +7,7 @@ end
 
 thisDir = fileparts(mfilename('fullpath'));
 trajectoryPlanDir = fileparts(thisDir);
-projectRoot = fileparts(fileparts(fileparts(trajectoryPlanDir)));
+projectRoot = fileparts(fileparts(trajectoryPlanDir));
 
 state = struct();
 state.paths = struct( ...
