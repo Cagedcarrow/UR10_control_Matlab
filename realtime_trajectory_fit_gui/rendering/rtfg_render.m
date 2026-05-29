@@ -21,6 +21,10 @@ rtfg_io('writeTextFile', state.tempUrdfPath, previewText);
 state.robot = importrobot(state.tempUrdfPath, ...
     'DataFormat', 'row', ...
     'MeshPath', state.paths.meshDir);
+state.collisionRobot = importrobot(state.paths.collisionRobotUrdf, ...
+    'DataFormat', 'row', ...
+    'MeshPath', state.paths.meshDir);
+state.collisionEnv = rtfg_collision('buildEnvironment', state);
 state.ikSolver = [];
 
 if isempty(state.currentQ) || numel(state.currentQ) ~= numel(state.initialJointPosition)
@@ -28,7 +32,8 @@ if isempty(state.currentQ) || numel(state.currentQ) ~= numel(state.initialJointP
 end
 
 if usePresetView
-    state.ui.cameraState = struct('mode', 'preset', 'value', getPresetView(state.ui.ddView.Value));
+    presetName = getUiDropdownValue(state.ui, 'ddView', "默认");
+    state.ui.cameraState = struct('mode', 'preset', 'value', getPresetView(presetName));
 elseif isfield(state.ui, 'mainAx') && isgraphics(state.ui.mainAx)
     state.ui.cameraState = captureCameraState(state.ui.mainAx, state.ui.cameraState);
 end
@@ -37,11 +42,15 @@ end
 function state = renderScene(state)
 ax = state.ui.mainAx;
 cla(ax);
+showFrames = getUiToggleValue(state.ui, 'cbFrames', true);
+showCollisionMarkers = getUiToggleValue(state.ui, 'cbCollisionMarkers', true);
+showWorld = getUiToggleValue(state.ui, 'cbWorld', true);
+showTrajectoryArrows = getUiToggleValue(state.ui, 'cbTrajectoryArrows', true);
 show(state.robot, state.currentQ, ...
     'Parent', ax, ...
     'Visuals', 'on', ...
     'Collisions', 'off', ...
-    'Frames', rtfg_utils('ternary', state.ui.cbFrames.Value, 'on', 'off'), ...
+    'Frames', rtfg_utils('ternary', showFrames, 'on', 'off'), ...
     'PreservePlot', false, ...
     'FastUpdate', true);
 hold(ax, 'on');
@@ -68,14 +77,17 @@ end
 if ~isempty(state.previewTargetZAxes)
     drawPreviewOrientationAxes(ax, state.previewTargetZAxes);
 end
+if showCollisionMarkers
+    drawCollisionResults(ax, state);
+end
 tcpNow = rtfg_utils('getTcpPosition', state.robot, state.currentQ);
 plot3(ax, tcpNow(1), tcpNow(2), tcpNow(3), 'o', ...
     'Color', [0.95 0.15 0.15], 'MarkerFaceColor', [0.95 0.15 0.15], 'MarkerSize', 7);
 
-if state.ui.cbWorld.Value
+if showWorld
     drawWorldAxes(ax);
 end
-if state.ui.cbTrajectoryArrows.Value
+if showTrajectoryArrows
     drawTrajectoryArrows(ax, traj);
 end
 
@@ -96,6 +108,97 @@ title(ax, sprintf(['环境 + 铲泥轨迹 | x = %.3f m | 距 X- = %.3f m | 距 X
     traj.approachLen, traj.thetaDeg, traj.depth));
 drawnow limitrate nocallbacks;
 hold(ax, 'off');
+end
+
+function value = getUiToggleValue(uiStruct, fieldName, defaultValue)
+value = defaultValue;
+if ~isfield(uiStruct, fieldName)
+    return;
+end
+handle = uiStruct.(fieldName);
+if isempty(handle)
+    return;
+end
+if isgraphics(handle) || isvalid(handle)
+    try
+        value = logical(handle.Value);
+    catch
+        value = defaultValue;
+    end
+end
+end
+
+function value = getUiDropdownValue(uiStruct, fieldName, defaultValue)
+value = defaultValue;
+if ~isfield(uiStruct, fieldName)
+    return;
+end
+handle = uiStruct.(fieldName);
+if isempty(handle)
+    return;
+end
+if isgraphics(handle) || isvalid(handle)
+    try
+        value = string(handle.Value);
+    catch
+        value = defaultValue;
+    end
+end
+end
+
+function drawCollisionResults(ax, state)
+results = state.collisionResults;
+if isempty(results) || ~isstruct(results) || ~isfield(results, 'hasCollision') || ~results.hasCollision
+    return;
+end
+
+plot3(ax, ...
+    results.collisionPoints(:, 1), results.collisionPoints(:, 2), results.collisionPoints(:, 3), 'o', ...
+    'Color', [0.95 0.10 0.10], ...
+    'MarkerFaceColor', [0.95 0.10 0.10], ...
+    'MarkerSize', 5);
+
+if ~isempty(results.firstCollision)
+    p = results.firstCollision.point;
+    plot3(ax, p(1), p(2), p(3), 'o', ...
+        'Color', [1.0 0.0 0.0], ...
+        'MarkerFaceColor', [1.0 0.92 0.2], ...
+        'MarkerSize', 9, ...
+        'LineWidth', 1.5);
+end
+
+if isfield(state, 'collisionEnv') && isfield(state.collisionEnv, 'basinBoxes')
+    hitNames = string(results.hitBasinNames);
+    for i = 1:numel(state.collisionEnv.basinBoxes)
+        boxSpec = state.collisionEnv.basinBoxes(i);
+        if any(hitNames == string(boxSpec.name))
+            drawHighlightedBox(ax, boxSpec.poseWorld, boxSpec.size);
+        end
+    end
+end
+end
+
+function drawHighlightedBox(ax, poseWorld, boxSize)
+vertsLocal = 0.5 * [
+    -boxSize(1), -boxSize(2), -boxSize(3)
+    boxSize(1), -boxSize(2), -boxSize(3)
+    boxSize(1), boxSize(2), -boxSize(3)
+    -boxSize(1), boxSize(2), -boxSize(3)
+    -boxSize(1), -boxSize(2), boxSize(3)
+    boxSize(1), -boxSize(2), boxSize(3)
+    boxSize(1), boxSize(2), boxSize(3)
+    -boxSize(1), boxSize(2), boxSize(3)];
+vertsWorld = (poseWorld(1:3, 1:3) * vertsLocal.' + poseWorld(1:3, 4)).';
+edges = [
+    1 2; 2 3; 3 4; 4 1
+    5 6; 6 7; 7 8; 8 5
+    1 5; 2 6; 3 7; 4 8];
+for i = 1:size(edges, 1)
+    pts = vertsWorld(edges(i, :), :);
+    plot3(ax, pts(:, 1), pts(:, 2), pts(:, 3), '-', ...
+        'Color', [0.95 0.10 0.10], ...
+        'LineWidth', 2.0);
+end
 end
 
 function drawTrajectoryArrows(ax, traj)

@@ -5,5 +5,6 @@ end
 
 t = linspace(0, 1, max(2, nPts)).';
 s = 10 * t.^3 - 15 * t.^4 + 6 * t.^5;
-qSeries = qStart + (qEnd - qStart) .* s;
+dq = atan2(sin(qEnd - qStart), cos(qEnd - qStart));
+qSeries = qStart + dq .* s;
 end

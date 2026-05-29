@@ -33,6 +33,7 @@ paths = struct();
 paths.thisDir = thisDir;
 paths.repoRoot = repoRoot;
 paths.sceneUrdf = fullfile(repoRoot, 'environmental_model', 'assembly_with_block_with_basin.urdf');
+paths.collisionRobotUrdf = fullfile(repoRoot, 'environmental_model', 'ur10_shovel_only.urdf');
 paths.meshDir = fullfile(repoRoot, 'environmental_model', 'meshes');
 paths.environmentPoseYaml = fullfile(repoRoot, 'environmental_model', 'block_with_basin_pose.yaml');
 paths.trajectoryGuiDir = fullfile(repoRoot, 'test', 'tarjectory_plan', 'trajectory_plan_3d_gui');
@@ -41,7 +42,7 @@ paths.runtimeYaml = fullfile(thisDir, 'environment_runtime_config.yaml');
 end
 
 function ensureRequiredPaths(paths)
-requiredPaths = {paths.sceneUrdf, paths.meshDir, paths.trajectoryGuiDir, paths.trajectoryDefaultsYaml};
+requiredPaths = {paths.sceneUrdf, paths.collisionRobotUrdf, paths.meshDir, paths.trajectoryGuiDir, paths.trajectoryDefaultsYaml};
 for i = 1:numel(requiredPaths)
     thisPath = requiredPaths{i};
     if ~exist(thisPath, 'file') && ~exist(thisPath, 'dir')

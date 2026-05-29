@@ -1,0 +1,110 @@
+#include "collision_checker.h"
+#include "robot_model.h"
+
+#include <fcl/fcl.h>
+
+#include <algorithm>
+#include <map>
+#include <memory>
+#include <string>
+#include <vector>
+
+namespace rtfg {
+
+CollisionSummary evaluateConfiguration(const RobotModel& robot,
+                                       const std::vector<BasinBox>& basin_boxes,
+                                       const SolverConfig& cfg, const Eigen::VectorXd& q) {
+  CollisionSummary summary;
+  auto poses = forwardKinematics(robot, q);
+
+  // Build FCL collision objects from pre-loaded robot collision data
+  std::vector<std::unique_ptr<CollisionObjectd>> robot_objects;
+  robot_objects.reserve(robot.collisions.size());
+  for (const auto& col : robot.collisions) {
+    Mat4 T = poses.at(col.link_name) * col.origin;
+    Eigen::Isometry3d tf = Eigen::Isometry3d::Identity();
+    tf.matrix() = T;
+    auto obj = std::make_unique<CollisionObjectd>(col.geometry, tf);
+    obj->computeAABB();
+    robot_objects.push_back(std::move(obj));
+  }
+
+  auto choose_violation = [&](const std::string& type, const std::string& name,
+                               double clearance) {
+    static const std::map<std::string, int> pri = {
+        {"tool_basin", 3}, {"tool_body", 2}, {"self", 1}};
+    if (summary.violation_type.empty() ||
+        pri.at(type) > pri.at(summary.violation_type)) {
+      summary.violation_type = type;
+      summary.violation_object = name;
+      summary.violation_clearance = clearance;
+    }
+  };
+
+  // Self-collision and tool-body
+  for (size_t i = 0; i < robot.collisions.size(); ++i) {
+    for (size_t j = i + 1; j < robot.collisions.size(); ++j) {
+      const auto& a = robot.collisions[i];
+      const auto& b = robot.collisions[j];
+      if (std::abs(a.chain_index - b.chain_index) <= 1) continue;
+
+      fcl::DistanceRequestd request(true);
+      fcl::DistanceResultd result;
+      double dist =
+          fcl::distance(robot_objects[i].get(), robot_objects[j].get(), request, result);
+      bool a_tool = a.is_tool;
+      bool b_tool = b.is_tool;
+      std::string pair_name = a.link_name + " <-> " + b.link_name;
+
+      if (a_tool ^ b_tool) {
+        if (dist < summary.min_tool_body) {
+          summary.min_tool_body = dist;
+          summary.min_tool_body_object = pair_name;
+        }
+        if (dist < cfg.clearance_threshold) {
+          choose_violation("tool_body", pair_name, dist);
+        }
+      } else if (!a_tool && !b_tool) {
+        if (dist < summary.min_self) {
+          summary.min_self = dist;
+          summary.min_self_object = pair_name;
+        }
+        if (dist < cfg.clearance_threshold) {
+          choose_violation("self", pair_name, dist);
+        }
+      }
+    }
+  }
+
+  // Tool-basin collisions
+  std::vector<int> tool_indices;
+  for (size_t i = 0; i < robot.collisions.size(); ++i) {
+    if (robot.collisions[i].is_tool) tool_indices.push_back(static_cast<int>(i));
+  }
+
+  for (int tool_idx : tool_indices) {
+    for (const auto& box : basin_boxes) {
+      auto geom = std::make_shared<fcl::Boxd>(box.size.x(), box.size.y(), box.size.z());
+      Eigen::Isometry3d tf = Eigen::Isometry3d::Identity();
+      tf.matrix() = box.pose;
+      CollisionObjectd basin_obj(geom, tf);
+      basin_obj.computeAABB();
+      fcl::DistanceRequestd request(true);
+      fcl::DistanceResultd result;
+      double dist =
+          fcl::distance(robot_objects[tool_idx].get(), &basin_obj, request, result);
+      std::string pair_name = box.name;
+      if (dist < summary.min_tool_basin) {
+        summary.min_tool_basin = dist;
+        summary.min_tool_basin_object = pair_name;
+      }
+      if (dist < cfg.clearance_threshold) {
+        choose_violation("tool_basin", pair_name, dist);
+      }
+    }
+  }
+
+  return summary;
+}
+
+}  // namespace rtfg

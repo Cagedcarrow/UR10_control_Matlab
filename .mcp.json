@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "matlab": {
+      "command": "/home/liuxiaopeng/.local/bin/matlab-mcp-core-server",
+      "args": [
+        "--matlab-root",
+        "/mnt/data_ntfs3g/Matlab2025",
+        "--initial-working-folder",
+        "/home/liuxiaopeng/公共的/MATLAB_ur10_control"
+      ]
+    }
+  }
+}

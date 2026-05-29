@@ -6,7 +6,11 @@ if nPts <= maxPts
     return;
 end
 
-mustKeep = unique([1; targetPlan.segmentTransitionIndices(:); nPts]);
+transitionWindowIdx = [];
+if isfield(targetPlan, 'transitionWindowIndices') && ~isempty(targetPlan.transitionWindowIndices)
+    transitionWindowIdx = targetPlan.transitionWindowIndices(:);
+end
+mustKeep = unique([1; targetPlan.segmentTransitionIndices(:); transitionWindowIdx; nPts]);
 candidate = unique(round(linspace(1, nPts, maxPts))).';
 idx = unique([mustKeep; candidate]);
 
