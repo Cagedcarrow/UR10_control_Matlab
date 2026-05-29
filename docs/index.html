@@ -2,10 +2,49 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta http-equiv="refresh" content="0;url=realtime_trajectory_fit_gui_技术文档/">
-<title>UR10 控制 MATLAB 项目文档</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UR10 控制 MATLAB — 文档索引</title>
+<style>
+:root{--bg-primary:#0d1117;--bg-secondary:#161b22;--bg-card:#1c2333;--text-primary:#e6edf3;--text-secondary:#8b949e;--text-muted:#6e7681;--accent:#58a6ff;--accent-green:#3fb950;--accent-orange:#d29922;--border:#30363d;--radius:8px;--font-sans:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans SC',sans-serif}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-sans);background:var(--bg-primary);color:var(--text-primary);min-height:100vh;display:flex;align-items:center;justify-content:center}
+.main{max-width:800px;margin:0 auto;padding:2rem;text-align:center}
+h1{font-size:2rem;border-bottom:2px solid var(--accent);padding-bottom:0.5rem;margin-bottom:0.5rem;display:inline-block}
+.subtitle{color:var(--text-secondary);margin-bottom:2.5rem;font-size:1.05rem}
+.card-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin:2rem 0}
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:2rem 1.5rem;text-decoration:none;color:var(--text-primary);transition:border-color 0.2s,transform 0.2s}
+.card:hover{border-color:var(--accent);transform:translateY(-3px)}
+.card-icon{font-size:2.5rem;margin-bottom:0.75rem}
+.card h3{font-size:1.15rem;margin-bottom:0.5rem;color:var(--accent)}
+.card p{color:var(--text-secondary);font-size:0.9rem;line-height:1.6}
+.tag{display:inline-block;padding:0.15em 0.6em;border-radius:12px;font-size:0.8em;font-weight:600;margin-top:0.75rem}
+.tag-blue{background:rgba(88,166,255,0.15);color:var(--accent)}
+.tag-green{background:rgba(63,185,80,0.15);color:var(--accent-green)}
+footer{margin-top:2.5rem;color:var(--text-muted);font-size:0.85rem}
+</style>
 </head>
 <body>
-<p>跳转至 <a href="realtime_trajectory_fit_gui_技术文档/">技术文档</a>...</p>
+<div class="main">
+<h1>UR10 控制 MATLAB</h1>
+<p class="subtitle">项目文档索引</p>
+
+<div class="card-grid">
+<a class="card" href="realtime_trajectory_fit_gui_技术文档/">
+  <div class="card-icon">⚡</div>
+  <h3>realtime_trajectory_fit_gui 技术文档</h3>
+  <p>C++ MEX 加速架构、性能优化对比、轨迹生成与拟合算法、模块连接关系与修改记录</p>
+  <span class="tag tag-green">最新</span>
+</a>
+
+<a class="card" href="参考论文架构加速代码/">
+  <div class="card-icon">📄</div>
+  <h3>参考论文架构加速代码</h3>
+  <p>项目交接说明、Matlab Robot Manipulator 参考论文架构文档与加速方案设计</p>
+  <span class="tag tag-blue">参考</span>
+</a>
+</div>
+
+<footer>GitHub: Cagedcarrow / UR10_control_Matlab</footer>
+</div>
 </body>
 </html>
