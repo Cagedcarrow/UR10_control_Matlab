@@ -2,6 +2,7 @@
 
 #include <Eigen/Dense>
 #include <fcl/fcl.h>
+#include <kdl/chain.hpp>
 
 #include <array>
 #include <limits>
@@ -66,6 +67,8 @@ struct RobotModel {
   std::string base_link;
   std::string tip_link;
   std::string mesh_root;
+  std::shared_ptr<KDL::Chain> kdl_chain;     // KDL chain base -> wrist_3 (6 DOF)
+  Mat4 T_wrist3_to_tcp = Mat4::Identity();    // fixed tool offset wrist_3 -> TCP
 };
 
 struct CandidateInfo {
@@ -93,7 +96,7 @@ struct CollisionSummary {
 struct SolverConfig {
   double clearance_threshold = 2e-3;
   double ik_position_tolerance = 3e-2;
-  int max_iterations = 200;
+  int max_iterations = 60;
   double lambda = 5e-3;
 };
 

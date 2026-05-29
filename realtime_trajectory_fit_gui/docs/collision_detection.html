@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>碰撞检测逻辑 — UR10 轨迹拟合</title>
+<style>
+  :root { --bg: #0d1117; --fg: #c9d1d9; --accent: #58a6ff; --border: #30363d; --code-bg: #161b22; --h2: #f0883e; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--fg); line-height: 1.6; max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem; }
+  h1 { font-size: 2rem; border-bottom: 2px solid var(--accent); padding-bottom: 0.5rem; margin-bottom: 1.5rem; }
+  h2 { color: var(--h2); margin: 2rem 0 0.75rem; font-size: 1.4rem; }
+  h3 { margin: 1.25rem 0 0.5rem; }
+  p { margin: 0.75rem 0; }
+  a { color: var(--accent); text-decoration: none; }
+  code { font-family: 'JetBrains Mono', 'Fira Code', monospace; background: var(--code-bg); padding: 0.15em 0.4em; border-radius: 4px; font-size: 0.9em; }
+  pre { background: var(--code-bg); padding: 1rem; border-radius: 6px; overflow-x: auto; margin: 1rem 0; border: 1px solid var(--border); }
+  pre code { padding: 0; background: none; }
+  ul, ol { padding-left: 1.5rem; margin: 0.75rem 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  th, td { border: 1px solid var(--border); padding: 0.5rem 0.75rem; text-align: left; }
+  th { background: var(--code-bg); font-weight: 600; }
+  .back { display: inline-block; margin-bottom: 1rem; }
+</style>
+</head>
+<body>
+<a href="index.html" class="back">← 返回索引</a>
+<h1>碰撞检测逻辑</h1>
+
+<h2>概述</h2>
+<p>碰撞检测基于 <strong>FCL (Flexible Collision Library)</strong>，对 UR10 挖掘机配置进行三类碰撞检测：</p>
+
+<table>
+  <tr><th>类型</th><th>检测对象</th><th>优先级</th><th>说明</th></tr>
+  <tr><td>自碰撞 (self)</td><td>机器人各连杆之间</td><td>低</td><td>UR10 本体连杆相互碰撞</td></tr>
+  <tr><td>工具-本体 (tool_body)</td><td>铲斗 vs 机器人本体</td><td>中</td><td>传感器铲斗碰到 UR10 手臂</td></tr>
+  <tr><td>工具-料斗 (tool_basin)</td><td>铲斗 vs 料斗壁</td><td>高</td><td>铲斗碰到料斗内壁/底面</td></tr>
+</table>
+
+<h2>碰撞模型加载</h2>
+<p>碰撞几何体从 URDF 文件的 <code>&lt;collision&gt;</code> 标签加载：</p>
+<ul>
+  <li><strong>Box</strong>：长方体 → <code>fcl::Boxd</code></li>
+  <li><strong>Cylinder</strong>：圆柱体 → <code>fcl::Cylinderd</code></li>
+  <li><strong>Mesh</strong>：STL 网格 → <code>fcl::BVHModel&lt;OBBRSSd&gt;</code>（支持二进制和 ASCII STL）</li>
+</ul>
+<p>工具连杆标记：<code>sensor_shovel</code> 和 <code>sensor_shovel_tcp</code>。</p>
+
+<h2>FCL 检测流程</h2>
+
+<pre><code>evaluateConfiguration(robot, basin_boxes, cfg, q):
+  1. 计算正运动学 (FK) → 所有连杆的世界位姿
+  2. 为每个碰撞几何体创建/更新 FCL CollisionObject
+     - 首次调用：创建对象并缓存 (thread_local)
+     - 后续调用：仅更新变换 (setTransform) + AABB
+  3. 自碰撞 & 工具-本体检测：
+     对所有连杆对 (i, j), i &lt; j, |chain_index_i - chain_index_j| > 1:
+       fcl::distance(obj_i, obj_j) → 最小距离
+       根据工具标记分类为 self 或 tool_body
+  4. 工具-料斗检测：
+     对每个工具连杆 × 每个料斗 Box：
+       fcl::distance(tool_obj, basin_box) → 最小距离
+       分类为 tool_basin
+  5. 更新全局最小间隙和违规记录</code></pre>
+
+<h2>碰撞判定</h2>
+<ul>
+  <li><strong>安全阈值</strong>：<code>clearance_threshold = 2 mm</code></li>
+  <li><strong>违规判定</strong>：最小距离 &lt; 阈值</li>
+  <li><strong>优先级排序</strong>：tool_basin > tool_body > self（一个配置可能触发多种碰撞，取最高优先级）</li>
+</ul>
+
+<h2>优化策略</h2>
+
+<h3>FCL 对象缓存</h3>
+<p>使用 <code>thread_local</code> 存储 FCL CollisionObject 向量。首次调用时创建所有对象；后续调用仅更新变换（<code>setTransform</code>）并重新计算 AABB。几何体通过 <code>shared_ptr</code> 共享，避免每次调用重新构建 BVH 树。</p>
+<p><strong>效果</strong>：单次碰撞检测从 ~47 ms 降至 ~15 ms（约 3× 加速）。</p>
+
+<h3>延迟碰撞验证</h3>
+<p>在 IK 求解的多种子调度中，仅对已满足位置/姿态误差容限的候选配置进行碰撞验证，避免对无效配置浪费碰撞检测时间。</p>
+
+<h3>稀疏审计</h3>
+<p>回放轨迹的碰撞审计采用稀疏采样（每 10 个回放点检测一次），因为相邻回放点之间的关节步长仅 ~0.7°，碰撞状态不会突变。</p>
+
+<h3>邻接跳过</h3>
+<p>自碰撞检测中跳过相邻连杆对（|chain_index 差 ≤ 1），因为相邻连杆在运动学上不可能碰撞。</p>
+
+<h2>碰撞结果结构</h2>
+<pre><code>CollisionSummary {
+  min_self, min_self_object           // 自碰撞最小间隙及对象
+  min_tool_body, min_tool_body_object // 工具-本体最小间隙
+  min_tool_basin, min_tool_basin_object // 工具-料斗最小间隙
+  violation_type, violation_object     // 最高优先级违规
+  violation_clearance                  // 违规处的间隙值
+}</code></pre>
+
+<p style="margin-top:2rem;"><a href="index.html">← 返回索引</a></p>
+</body>
+</html>

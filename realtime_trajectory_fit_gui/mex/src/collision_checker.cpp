@@ -17,16 +17,35 @@ CollisionSummary evaluateConfiguration(const RobotModel& robot,
   CollisionSummary summary;
   auto poses = forwardKinematics(robot, q);
 
-  // Build FCL collision objects from pre-loaded robot collision data
-  std::vector<std::unique_ptr<CollisionObjectd>> robot_objects;
-  robot_objects.reserve(robot.collisions.size());
-  for (const auto& col : robot.collisions) {
-    Mat4 T = poses.at(col.link_name) * col.origin;
-    Eigen::Isometry3d tf = Eigen::Isometry3d::Identity();
-    tf.matrix() = T;
-    auto obj = std::make_unique<CollisionObjectd>(col.geometry, tf);
+  // Reusable FCL collision objects — shared_ptr geometry is reused,
+  // only the transform is updated each call (avoids expensive BVH rebuild).
+  thread_local std::vector<std::unique_ptr<CollisionObjectd>> robot_objects;
+  thread_local const RobotModel* cached_robot = nullptr;
+
+  if (!cached_robot || cached_robot != &robot) {
+    robot_objects.clear();
+    robot_objects.reserve(robot.collisions.size());
+    for (const auto& col : robot.collisions) {
+      Mat4 T = poses.at(col.link_name) * col.origin;
+      Eigen::Isometry3d tf = Eigen::Isometry3d::Identity();
+      tf.matrix() = T;
+      auto obj = std::make_unique<CollisionObjectd>(col.geometry, tf);
+      robot_objects.push_back(std::move(obj));
+    }
+    cached_robot = &robot;
+  } else {
+    // Update transforms only — geometry is shared, no BVH rebuild needed
+    for (size_t i = 0; i < robot.collisions.size(); ++i) {
+      Mat4 T = poses.at(robot.collisions[i].link_name) * robot.collisions[i].origin;
+      Eigen::Isometry3d tf = Eigen::Isometry3d::Identity();
+      tf.matrix() = T;
+      robot_objects[i]->setTransform(tf);
+    }
+  }
+
+  // Compute AABBs (needed after transform update for broadphase culling)
+  for (auto& obj : robot_objects) {
     obj->computeAABB();
-    robot_objects.push_back(std::move(obj));
   }
 
   auto choose_violation = [&](const std::string& type, const std::string& name,

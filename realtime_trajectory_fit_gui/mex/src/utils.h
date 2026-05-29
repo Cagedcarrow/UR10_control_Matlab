@@ -9,11 +9,6 @@
 #include <string>
 #include <vector>
 
-// Forward declare urdf types
-namespace urdf {
-struct Pose;
-}
-
 namespace rtfg {
 
 // --- math utilities ---
@@ -42,7 +37,6 @@ Eigen::VectorXd readRowVector(const mxArray* arr);
 Eigen::MatrixXd readMatrix(const mxArray* arr);
 std::vector<Mat4> readTformStack(const mxArray* arr);
 mxArray* eigenMatrixToMx(const Eigen::MatrixXd& M);
-Mat4 urdfPoseToTform(const urdf::Pose& pose);
 std::vector<BasinBox> readBasinBoxes(const mxArray* arr);
 
 }  // namespace rtfg

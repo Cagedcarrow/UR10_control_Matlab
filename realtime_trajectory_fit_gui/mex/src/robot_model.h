@@ -9,6 +9,11 @@
 #include <unordered_map>
 #include <vector>
 
+// Forward declare urdf types
+namespace urdf {
+struct Pose;
+}
+
 namespace rtfg {
 
 // Load robot model from URDF file, tracing the kinematic chain from base_link to tip_link.
@@ -32,5 +37,8 @@ Eigen::VectorXd clampToLimits(const RobotModel& robot, const Eigen::VectorXd& q)
 // This is the C++ equivalent of MATLAB's alignEquivalentConfiguration().
 Eigen::VectorXd alignToReference(const RobotModel& robot, const Eigen::VectorXd& q,
                                  const Eigen::VectorXd& q_ref);
+
+// Convert URDF pose to 4x4 homogeneous transform.
+Mat4 urdfPoseToTform(const urdf::Pose& pose);
 
 }  // namespace rtfg

@@ -3,7 +3,12 @@
 #include "robot_model.h"
 #include "utils.h"
 
+#include <mex.h>
+
 #include <Eigen/Dense>
+
+#include <kdl/chainiksolverpos_lma.hpp>
+#include <kdl/frames.hpp>
 
 #include <algorithm>
 #include <array>
@@ -81,17 +86,12 @@ CandidateInfo solveSinglePose(const RobotModel& robot,
 
   Mat4 T = tipTransform(robot, q);
   Vec6 err = poseError(T, target);
-  auto collision = evaluateConfiguration(robot, basin_boxes, cfg, q);
-  double clearance =
-      std::min({collision.min_self, collision.min_tool_body, collision.min_tool_basin});
 
   cand.q = q;
   cand.pos_err = err.head<3>().norm();
   cand.rot_err = err.tail<3>().norm();
-  cand.clearance = clearance;
+  cand.clearance = std::numeric_limits<double>::infinity();  // deferred — caller checks
   cand.cost = continuityCost(q, q_prev, dq_prev);
-  cand.failure_reason =
-      !collision.violation_object.empty() ? collision.violation_object : std::string();
   cand.valid = true;
   return cand;
 }
@@ -152,6 +152,91 @@ std::vector<Eigen::VectorXd> buildGlobalSeedList(const RobotModel& robot) {
     seeds.push_back(q);
   }
   return seeds;
+}
+
+// --- KDL LMA backend ---
+
+namespace {
+
+Mat4 kdlFrameToMat4(const KDL::Frame& f) {
+  Mat4 T = Mat4::Identity();
+  for (int r = 0; r < 3; ++r)
+    for (int c = 0; c < 3; ++c) T(r, c) = f.M(r, c);
+  T(0, 3) = f.p(0);
+  T(1, 3) = f.p(1);
+  T(2, 3) = f.p(2);
+  return T;
+}
+
+}  // namespace
+
+CandidateInfo solveSinglePoseKdl(const RobotModel& robot,
+                                  const std::vector<BasinBox>& basin_boxes,
+                                  const SolverConfig& cfg,
+                                  const Mat4& target, const Eigen::VectorXd& seed,
+                                  const Eigen::VectorXd& q_prev,
+                                  const Eigen::VectorXd& dq_prev,
+                                  const std::array<double, 6>& weights,
+                                  double orient_limit) {
+  CandidateInfo cand;
+  if (!robot.kdl_chain || robot.kdl_chain->getNrOfJoints() != 6) {
+    cand.valid = false;
+    cand.failure_reason = "KDL chain not available";
+    return cand;
+  }
+
+  // Transform target TCP → target wrist_3
+  Mat4 target_wrist3 = target * robot.T_wrist3_to_tcp.inverse();
+
+  // Convert to KDL Frame
+  KDL::Frame target_frame;
+  for (int r = 0; r < 3; ++r)
+    for (int c = 0; c < 3; ++c) target_frame.M(r, c) = target_wrist3(r, c);
+  target_frame.p(0) = target_wrist3(0, 3);
+  target_frame.p(1) = target_wrist3(1, 3);
+  target_frame.p(2) = target_wrist3(2, 3);
+
+  // Convert seed to KDL JntArray
+  KDL::JntArray q_init(6);
+  Eigen::VectorXd seed_clamped = clampToLimits(robot, seed);
+  for (int i = 0; i < 6; ++i) q_init(i) = seed_clamped(i);
+
+  // Build weight vector for KDL LMA
+  // KDL's L vector: sqrt of task-space weights. Higher = more important.
+  // Our weights: [pos, pos, pos, rot, rot, rot] where 1 = important, 0 = ignore.
+  // Scale: pos weight 1 → L=1, rot weight 0.03 → L=sqrt(0.03)≈0.173
+  Eigen::Matrix<double, 6, 1> L;
+  for (int k = 0; k < 6; ++k) {
+    L(k) = std::sqrt(std::max(weights[k], 1e-6));
+  }
+
+  KDL::ChainIkSolverPos_LMA solver(*robot.kdl_chain, L, 1e-5, 100, 1e-6);
+  KDL::JntArray q_out(6);
+  int rc = solver.CartToJnt(q_init, target_frame, q_out);
+
+  if (rc < 0) {
+    cand.valid = false;
+    cand.failure_reason = "KDL_LMA:" + std::string(solver.strError(rc));
+    return cand;
+  }
+
+  // Convert result back to Eigen, align to reference
+  Eigen::VectorXd q_kdl(6);
+  for (int i = 0; i < 6; ++i) q_kdl(i) = q_out(i);
+  q_kdl = clampToLimits(robot, q_kdl);
+  q_kdl = alignToReference(robot, q_kdl, q_prev + dq_prev);
+
+  // Evaluate quality (collision deferred to caller)
+  Mat4 T_tcp = tipTransform(robot, q_kdl);
+  Vec6 err = poseError(T_tcp, target);
+
+  cand.q = q_kdl;
+  cand.pos_err = err.head<3>().norm();
+  cand.rot_err = err.tail<3>().norm();
+  cand.clearance = std::numeric_limits<double>::infinity();  // deferred
+  cand.cost = continuityCost(q_kdl, q_prev, dq_prev);
+  cand.valid = true;
+  return cand;
 }
 
 }  // namespace rtfg

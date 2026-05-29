@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>轨迹生成算法 — UR10 轨迹拟合</title>
+<style>
+  :root { --bg: #0d1117; --fg: #c9d1d9; --accent: #58a6ff; --border: #30363d; --code-bg: #161b22; --h2: #f0883e; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--fg); line-height: 1.6; max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem; }
+  h1 { font-size: 2rem; border-bottom: 2px solid var(--accent); padding-bottom: 0.5rem; margin-bottom: 1.5rem; }
+  h2 { color: var(--h2); margin: 2rem 0 0.75rem; font-size: 1.4rem; }
+  h3 { margin: 1.25rem 0 0.5rem; }
+  p { margin: 0.75rem 0; }
+  a { color: var(--accent); text-decoration: none; }
+  code { font-family: 'JetBrains Mono', 'Fira Code', monospace; background: var(--code-bg); padding: 0.15em 0.4em; border-radius: 4px; font-size: 0.9em; }
+  pre { background: var(--code-bg); padding: 1rem; border-radius: 6px; overflow-x: auto; margin: 1rem 0; border: 1px solid var(--border); }
+  pre code { padding: 0; background: none; }
+  ul, ol { padding-left: 1.5rem; margin: 0.75rem 0; }
+  .formula { background: var(--code-bg); border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem 1rem; margin: 0.75rem 0; font-family: 'JetBrains Mono', monospace; }
+  .back { display: inline-block; margin-bottom: 1rem; }
+</style>
+</head>
+<body>
+<a href="index.html" class="back">← 返回索引</a>
+<h1>轨迹生成算法</h1>
+
+<h2>概述</h2>
+<p>轨迹生成由 <code>generate_trajectory_3d</code> 函数完成，根据料斗几何参数和铲斗姿态生成三段式挖掘轨迹：</p>
+<ol>
+  <li><strong>切入段 (Approach)</strong>：铲斗从泥面以上沿斜线切入泥中</li>
+  <li><strong>圆弧段 (Arc)</strong>：铲斗在泥中沿圆弧挖掘</li>
+  <li><strong>提升段 (Lift)</strong>：铲斗从泥中沿斜线提升出泥</li>
+</ol>
+
+<h2>参数配置</h2>
+<p>轨迹参数通过 YAML 文件 (<code>trajectory_params_3d.yaml</code>) 配置：</p>
+<ul>
+  <li><code>basin.*</code> — 料斗几何尺寸（内壁 X/Y/Z 范围、底面Z坐标）</li>
+  <li><code>mudHeight</code> — 泥面高度（相对料斗底面）</li>
+  <li><code>approachAngleDeg</code> — 切入角度（相对水平面）</li>
+  <li><code>liftAngleDeg</code> — 提升角度</li>
+  <li><code>arcRadius</code> — 圆弧半径</li>
+  <li><code>depthBelowMud</code> — 泥下深度</li>
+  <li><code>clearanceAboveMud</code> — 泥上安全高度</li>
+  <li><code>entryX / exitX</code> — 切入/切出位置的 X 坐标</li>
+</ul>
+
+<h2>分段轨迹生成</h2>
+
+<h3>1. 切入段 (Approach Segment)</h3>
+<p>从料斗上方安全高度斜向切入泥中：</p>
+<ul>
+  <li>起点：泥面上方 <code>clearanceAboveMud</code> 处</li>
+  <li>终点：泥面下方 <code>depthBelowMud</code> 处（圆弧起点）</li>
+  <li>方向：沿 <code>approachAngleDeg</code> 斜向下</li>
+  <li>工具朝向：X 轴对齐路径切线，Z 轴（铲斗法向）指向路径内侧</li>
+</ul>
+
+<h3>2. 圆弧段 (Arc Segment)</h3>
+<p>铲斗在泥面以下沿圆弧轨迹挖掘：</p>
+<ul>
+  <li>圆弧从切入终点到提升起点</li>
+  <li>圆弧半径 = <code>arcRadius</code></li>
+  <li>圆心位于泥面下方</li>
+  <li>工具朝向：X 轴对齐切线，Z 轴指向圆心（保持挖掘姿态）</li>
+</ul>
+
+<h3>3. 提升段 (Lift Segment)</h3>
+<p>从泥中斜向提升出泥面：</p>
+<ul>
+  <li>起点：圆弧终点（泥面以下）</li>
+  <li>终点：泥面上方 <code>clearanceAboveMud</code> 处</li>
+  <li>方向：沿 <code>liftAngleDeg</code> 斜向上</li>
+  <li>工具朝向：世界 Z 轴向上（铲斗放平）</li>
+</ul>
+
+<h2>姿态定义</h2>
+<p>每个轨迹点的姿态（旋转矩阵）由路径切线方向决定：</p>
+<div class="formula">
+X_axis = -tangent        (铲斗前进方向 = 路径切向反方向)<br>
+Z_axis = 世界Z轴投影     (切入/圆弧段: 指向路径内侧; 提升段: 世界向上)<br>
+Y_axis = Z × X           (右手定则)
+</div>
+<p>然后在 MATLAB 中通过 <code>rtfg_utils('applyPoseToTrajectory')</code> 应用用户指定的铲斗位置 (x, y, z) 和朝向 (roll, pitch, yaw)。</p>
+
+<h2>目标位姿序列生成</h2>
+<p>对于 MEX 求解器，每个轨迹点需要转换为 4×4 齐次变换矩阵 (targetTforms)：</p>
+<ul>
+  <li>位置：轨迹点的世界坐标 (x, y, z)</li>
+  <li>姿态：由路径切线和段类型决定的旋转矩阵</li>
+  <li>段标签：<code>approach</code> / <code>arc</code> / <code>lift</code></li>
+</ul>
+
+<p style="margin-top:2rem;"><a href="index.html">← 返回索引</a></p>
+</body>
+</html>

@@ -4,6 +4,9 @@
 #include <urdf_model/model.h>
 #include <urdf_parser/urdf_parser.h>
 
+#include <kdl/chainfksolverpos_recursive.hpp>
+#include <kdl_parser/kdl_parser.hpp>
+
 #include <algorithm>
 #include <cmath>
 #include <fcl/fcl.h>
@@ -215,6 +218,40 @@ RobotModel loadRobotModel(const std::string& urdf_path, const std::string& base_
     robot.collisions.push_back(lc);
   }
 
+  // Build KDL chain from base_link to ur10_wrist_3 (6-DOF arm only)
+  // The tool (sensor_shovel -> sensor_shovel_tcp) is a fixed offset.
+  {
+    KDL::Tree kdl_tree;
+    if (!kdl_parser::treeFromUrdfModel(*model, kdl_tree)) {
+      throw std::runtime_error("KDL failed to parse URDF tree");
+    }
+    auto kdl_chain = std::make_shared<KDL::Chain>();
+    if (!kdl_tree.getChain(base_link, "ur10_wrist_3", *kdl_chain)) {
+      throw std::runtime_error("KDL cannot extract chain from " + base_link +
+                               " to ur10_wrist_3");
+    }
+    robot.kdl_chain = kdl_chain;
+
+    // Compute wrist_3 → TCP offset using forward kinematics at home config
+    KDL::ChainFkSolverPos_recursive fk_solver(*kdl_chain);
+    KDL::JntArray q_kdl(kdl_chain->getNrOfJoints());
+    KDL::Frame wrist3_frame;
+    fk_solver.JntToCart(q_kdl, wrist3_frame);
+
+    Mat4 T_base_wrist3 = Mat4::Identity();
+    for (int r = 0; r < 3; ++r)
+      for (int c = 0; c < 3; ++c) T_base_wrist3(r, c) = wrist3_frame.M(r, c);
+    T_base_wrist3(0, 3) = wrist3_frame.p(0);
+    T_base_wrist3(1, 3) = wrist3_frame.p(1);
+    T_base_wrist3(2, 3) = wrist3_frame.p(2);
+
+    // Get TCP at zero config from our own FK
+    Eigen::VectorXd q_zero = Eigen::VectorXd::Zero(6);
+    Mat4 T_base_tcp = tipTransform(robot, q_zero);
+
+    robot.T_wrist3_to_tcp = T_base_wrist3.inverse() * T_base_tcp;
+  }
+
   return robot;
 }
 
@@ -248,7 +285,7 @@ Mat6 numericJacobian(const RobotModel& robot, const Eigen::VectorXd& q) {
     qp(i) += eps;
     Mat4 Tp = tipTransform(robot, qp);
     Vec6 delta = poseError(T0, Tp);
-    J.col(i) = -delta / eps;
+    J.col(i) = delta / eps;
   }
   return J;
 }
@@ -282,6 +319,13 @@ Eigen::VectorXd alignToReference(const RobotModel& robot, const Eigen::VectorXd&
     q_aligned(idx) = std::min(std::max(best, seg.lower), seg.upper);
   }
   return q_aligned;
+}
+
+Mat4 urdfPoseToTform(const urdf::Pose& pose) {
+  Vec3 xyz(pose.position.x, pose.position.y, pose.position.z);
+  double roll = 0.0, pitch = 0.0, yaw = 0.0;
+  pose.rotation.getRPY(roll, pitch, yaw);
+  return xyzrpyToTform(xyz, Vec3(roll, pitch, yaw));
 }
 
 }  // namespace rtfg

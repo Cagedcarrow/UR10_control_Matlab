@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UR10 实时轨迹拟合 GUI — 技术文档</title>
+<style>
+  :root { --bg: #0d1117; --fg: #c9d1d9; --accent: #58a6ff; --border: #30363d; --code-bg: #161b22; --h2: #f0883e; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--fg); line-height: 1.6; max-width: 960px; margin: 0 auto; padding: 2rem 1.5rem; }
+  h1 { font-size: 2rem; border-bottom: 2px solid var(--accent); padding-bottom: 0.5rem; margin-bottom: 1.5rem; }
+  h2 { color: var(--h2); margin: 2rem 0 0.75rem; font-size: 1.4rem; }
+  h3 { margin: 1.25rem 0 0.5rem; }
+  p { margin: 0.75rem 0; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  ul, ol { padding-left: 1.5rem; margin: 0.75rem 0; }
+  li { margin: 0.25rem 0; }
+  code { font-family: 'JetBrains Mono', 'Fira Code', monospace; background: var(--code-bg); padding: 0.15em 0.4em; border-radius: 4px; font-size: 0.9em; }
+  pre { background: var(--code-bg); padding: 1rem; border-radius: 6px; overflow-x: auto; margin: 1rem 0; border: 1px solid var(--border); }
+  pre code { padding: 0; background: none; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; }
+  th, td { border: 1px solid var(--border); padding: 0.5rem 0.75rem; text-align: left; }
+  th { background: var(--code-bg); font-weight: 600; }
+  .card { border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; margin: 1rem 0; }
+  .card:hover { border-color: var(--accent); }
+  .metric { font-size: 1.5rem; font-weight: 700; color: #3fb950; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; margin: 1rem 0; }
+</style>
+</head>
+<body>
+<h1>UR10 实时轨迹拟合 GUI — 技术文档</h1>
+
+<p>本文档介绍 <strong>UR10 挖掘机轨迹拟合系统</strong> 的架构设计、算法原理、C++ 加速方案和性能对比。</p>
+
+<div class="grid">
+  <a href="architecture.html" class="card">
+    <h3>架构设计</h3>
+    <p>模块调用关系图、C++/MEX 加速架构、数据流设计</p>
+  </a>
+  <a href="trajectory_generation.html" class="card">
+    <h3>轨迹生成算法</h3>
+    <p>切入段 / 圆弧段 / 提升段的分段轨迹生成原理</p>
+  </a>
+  <a href="trajectory_fitting.html" class="card">
+    <h3>轨迹拟合 &amp; C++ 加速</h3>
+    <p>逆运动学求解、MEX 接口、阻尼最小二乘法、种子调度策略</p>
+  </a>
+  <a href="collision_detection.html" class="card">
+    <h3>碰撞检测逻辑</h3>
+    <p>自碰撞、工具-本体、工具-料斗三类检测与 FCL 集成</p>
+  </a>
+  <a href="performance_benchmark.html" class="card">
+    <h3>性能对比</h3>
+    <p>C++ MEX vs MATLAB 内置 IK 的速度对比与加速比分析</p>
+  </a>
+</div>
+
+<h2>快速导航</h2>
+<table>
+  <tr><th>模块</th><th>文件</th><th>职责</th></tr>
+  <tr><td>类型定义</td><td><code>mex/src/types.h</code></td><td>数据结构、配置参数、结果容器</td></tr>
+  <tr><td>工具函数</td><td><code>mex/src/utils.h/cpp</code></td><td>数学工具、mxArray 转换、姿态误差</td></tr>
+  <tr><td>机器人模型</td><td><code>mex/src/robot_model.h/cpp</code></td><td>URDF 加载、正运动学、雅可比、关节对齐</td></tr>
+  <tr><td>IK 求解器</td><td><code>mex/src/ik_solver.h/cpp</code></td><td>阻尼最小二乘 IK、KDL LMA、种子生成</td></tr>
+  <tr><td>碰撞检测</td><td><code>mex/src/collision_checker.h/cpp</code></td><td>FCL 碰撞检测、三类碰撞区分</td></tr>
+  <tr><td>轨迹求解</td><td><code>mex/src/trajectory_solver.h/cpp</code></td><td>多种子调度、回放生成、碰撞审计</td></tr>
+  <tr><td>MEX 入口</td><td><code>mex/src/mex_entry.cpp</code></td><td>MATLAB ↔ C++ 参数解析与结果封装</td></tr>
+  <tr><td>编译脚本</td><td><code>mex/build_mex.m</code></td><td>MEX 编译配置与 RPATH 链接</td></tr>
+</table>
+
+<h2>性能总览</h2>
+<div class="grid">
+  <div class="card">
+    <div class="metric">6.9 s</div>
+    <div>C++ MEX 总耗时 (258 轨迹点)</div>
+  </div>
+  <div class="card">
+    <div class="metric">27 ms</div>
+    <div>单点平均耗时 (含碰撞检测)</div>
+  </div>
+  <div class="card">
+    <div class="metric">1.5×</div>
+    <div>相比 MATLAB 内置 IK 的加速比</div>
+  </div>
+  <div class="card">
+    <div class="metric">8.1×</div>
+    <div>相比初版 C++ MEX 的总加速比</div>
+  </div>
+</div>
+
+<p style="margin-top:2rem; color: #8b949e; font-size: 0.85rem;">
+  最后更新: 2026-05-29 · 基于 commit <code>803d59f</code>
+</p>
+</body>
+</html>

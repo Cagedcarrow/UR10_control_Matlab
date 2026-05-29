@@ -11,6 +11,7 @@ namespace rtfg {
 
 void fail(const std::string& id, const std::string& msg) {
   mexErrMsgIdAndTxt(id.c_str(), "%s", msg.c_str());
+  __builtin_unreachable();
 }
 
 double clamp01(double x) {
@@ -188,15 +189,6 @@ mxArray* eigenMatrixToMx(const Eigen::MatrixXd& M) {
     }
   }
   return out;
-}
-
-Mat4 urdfPoseToTform(const urdf::Pose& pose) {
-  Vec3 xyz(pose.position.x, pose.position.y, pose.position.z);
-  double roll = 0.0;
-  double pitch = 0.0;
-  double yaw = 0.0;
-  pose.rotation.getRPY(roll, pitch, yaw);
-  return xyzrpyToTform(xyz, Vec3(roll, pitch, yaw));
 }
 
 std::vector<BasinBox> readBasinBoxes(const mxArray* arr) {

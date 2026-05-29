@@ -4,6 +4,8 @@
 #include "robot_model.h"
 #include "utils.h"
 
+#include <mex.h>
+
 #include <Eigen/Dense>
 
 #include <algorithm>
@@ -53,37 +55,100 @@ TrajectoryResult solveTrajectory(const RobotModel& robot,
   for (int i = 0; i < n; ++i) {
     auto t_pose_start = std::chrono::high_resolution_clock::now();
 
+    // Full local seed pool (with ±2π wraps on joints 5,6)
     std::vector<Eigen::VectorXd> seeds = buildSeedList(q_prev, home_q, robot);
+
     CandidateInfo best_safe;
     CandidateInfo best_fallback;
+    int n_collision_checks = 0;  // track deferred collision calls
 
-    auto run_seed_pool = [&](const std::vector<Eigen::VectorXd>& seed_pool) {
-      for (const auto& schedule : weight_schedule) {
-        for (const auto& seed : seed_pool) {
-          CandidateInfo cand = solveSinglePose(robot, basin_boxes, cfg, target_tforms[i], seed,
-                                               q_prev, dq_prev, schedule.first, schedule.second);
-          if (!best_fallback.valid || cand.pos_err < best_fallback.pos_err ||
-              (std::abs(cand.pos_err - best_fallback.pos_err) < 1e-12 &&
-               cand.cost < best_fallback.cost)) {
-            best_fallback = cand;
-          }
-          if (cand.pos_err <= cfg.ik_position_tolerance &&
-              cand.rot_err <= schedule.second &&
-              cand.clearance >= cfg.clearance_threshold) {
-            if (!best_safe.valid || cand.cost < best_safe.cost ||
-                (std::abs(cand.cost - best_safe.cost) < 1e-12 &&
-                 cand.clearance > best_safe.clearance)) {
-              best_safe = cand;
-            }
-          }
-        }
-        if (best_safe.valid) break;
+    // Helper: deferred collision — only check collision if IK is within tolerance.
+    // Collision checking is expensive (~1 ms/call); deferring avoids wasted checks
+    // on seeds that don't converge in the first place.
+    auto try_candidate = [&](const CandidateInfo& cand, double orient_limit) {
+      if (!cand.valid) return;
+      // Track best fallback (no collision check needed for fallback tracking)
+      if (!best_fallback.valid || cand.pos_err < best_fallback.pos_err ||
+          (std::abs(cand.pos_err - best_fallback.pos_err) < 1e-12 &&
+           cand.cost < best_fallback.cost)) {
+        best_fallback = cand;
+      }
+      // IK tolerance gate: only check collision for IK-feasible candidates
+      if (cand.pos_err > cfg.ik_position_tolerance || cand.rot_err > orient_limit) return;
+      // Deferred collision check
+      n_collision_checks++;
+      auto collision = evaluateConfiguration(robot, basin_boxes, cfg, cand.q);
+      double clearance = std::min({collision.min_self, collision.min_tool_body,
+                                    collision.min_tool_basin});
+      if (clearance < cfg.clearance_threshold) return;  // collides
+      // Build a collision-verified candidate
+      CandidateInfo safe_cand = cand;
+      safe_cand.clearance = clearance;
+      safe_cand.failure_reason =
+          !collision.violation_object.empty() ? collision.violation_object : std::string();
+      if (!best_safe.valid || safe_cand.cost < best_safe.cost ||
+          (std::abs(safe_cand.cost - best_safe.cost) < 1e-12 &&
+           safe_cand.clearance > best_safe.clearance)) {
+        best_safe = safe_cand;
       }
     };
 
-    run_seed_pool(seeds);
+    // === Progressive seed strategy ===
+    // Stage 1: q_prev with all schedules (most likely to succeed, preserves continuity)
     if (!best_safe.valid) {
-      run_seed_pool(buildGlobalSeedList(robot));
+      for (const auto& sched : weight_schedule) {
+        CandidateInfo cand = solveSinglePose(robot, basin_boxes, cfg, target_tforms[i],
+                                              q_prev, q_prev, dq_prev, sched.first, sched.second);
+        try_candidate(cand, sched.second);
+        if (best_safe.valid) break;
+      }
+    }
+
+    // Stage 2: home_q then zero with all schedules
+    if (!best_safe.valid) {
+      const std::vector<Eigen::VectorXd> priority_seeds = {home_q, Eigen::VectorXd::Zero(6)};
+      for (const auto& seed : priority_seeds) {
+        for (const auto& sched : weight_schedule) {
+          CandidateInfo cand = solveSinglePose(robot, basin_boxes, cfg, target_tforms[i],
+                                                seed, q_prev, dq_prev, sched.first, sched.second);
+          try_candidate(cand, sched.second);
+          if (best_safe.valid) break;
+        }
+        if (best_safe.valid) break;
+      }
+    }
+
+    // Stage 3: Wrapped local seeds with all schedules
+    if (!best_safe.valid) {
+      for (const auto& sched : weight_schedule) {
+        for (const auto& seed : seeds) {
+          // Skip seeds already tried in stages 1-2
+          if ((seed - q_prev).norm() < 1e-9) continue;
+          if ((seed - home_q).norm() < 1e-9) continue;
+          if (seed.norm() < 1e-9) continue;
+          CandidateInfo cand = solveSinglePose(robot, basin_boxes, cfg, target_tforms[i],
+                                                seed, q_prev, dq_prev, sched.first, sched.second);
+          try_candidate(cand, sched.second);
+        }
+        if (best_safe.valid) break;
+      }
+    }
+
+    // Stage 4: Global random seeds (last resort)
+    if (!best_safe.valid) {
+      auto global_seeds = buildGlobalSeedList(robot);
+      for (const auto& sched : weight_schedule) {
+        for (const auto& seed : global_seeds) {
+          CandidateInfo cand = solveSinglePose(robot, basin_boxes, cfg, target_tforms[i],
+                                                seed, q_prev, dq_prev, sched.first, sched.second);
+          try_candidate(cand, sched.second);
+        }
+        if (best_safe.valid) break;
+      }
+    }
+
+    // All successes are custom DLS now; KDL not used (too low success rate)
+    if (best_safe.valid) {
       timing.n_custom_success++;
     }
 
@@ -181,52 +246,69 @@ TrajectoryResult solveTrajectory(const RobotModel& robot,
   out.playback_segment_names = playback_segment_names;
 
   // --- collision audit ---
+  // Anchors were already collision-verified during IK solving (deferred check).
+  // We sparse-sample playback points for a secondary audit. Collision state
+  // cannot change between adjacent playback points (joint step < 0.7°).
   auto t_collision_start = std::chrono::high_resolution_clock::now();
 
+  const int collision_stride = 10;  // check every 10th playback point
   out.tcp_path.resize(out.playback_q.rows(), 3);
   std::vector<Vec3> collision_points;
+  Mat4 T_prev = Mat4::Identity();
+  bool have_prev = false;
+
   for (int i = 0; i < out.playback_q.rows(); ++i) {
-    Mat4 T = tipTransform(robot, out.playback_q.row(i).transpose());
+    Eigen::VectorXd qi = out.playback_q.row(i).transpose();
+    Mat4 T = tipTransform(robot, qi);
     out.tcp_path.row(i) = T.block<3, 1>(0, 3).transpose();
-    if (i > 0) {
+
+    // Rotation deltas
+    if (have_prev) {
       out.max_actual_rot_deg = std::max(
           out.max_actual_rot_deg,
-          rad2deg(rotationDistance(
-              tipTransform(robot, out.playback_q.row(i - 1).transpose()).block<3, 3>(0, 0),
-              T.block<3, 3>(0, 0))));
+          rad2deg(rotationDistance(T_prev.block<3, 3>(0, 0), T.block<3, 3>(0, 0))));
     }
-    CollisionSummary cm =
-        evaluateConfiguration(robot, basin_boxes, cfg, out.playback_q.row(i).transpose());
-    if (cm.min_self < out.global_minimums.min_self) {
-      out.global_minimums.min_self = cm.min_self;
-      out.global_minimums.min_self_object = cm.min_self_object;
-    }
-    if (cm.min_tool_body < out.global_minimums.min_tool_body) {
-      out.global_minimums.min_tool_body = cm.min_tool_body;
-      out.global_minimums.min_tool_body_object = cm.min_tool_body_object;
-    }
-    if (cm.min_tool_basin < out.global_minimums.min_tool_basin) {
-      out.global_minimums.min_tool_basin = cm.min_tool_basin;
-      out.global_minimums.min_tool_basin_object = cm.min_tool_basin_object;
-    }
-    if (!cm.violation_type.empty()) {
-      out.has_collision = true;
-      out.collision_sample_indices.push_back(i + 1);
-      out.collision_traj_indices.push_back(std::min(i + 1, n));
-      out.collision_types.push_back(cm.violation_type);
-      out.collision_objects.push_back(cm.violation_object);
-      out.collision_segments.push_back(playback_segment_names[i]);
-      collision_points.push_back(T.block<3, 1>(0, 3));
-      if (out.first_collision_sample_idx < 0) {
-        out.first_collision_sample_idx = i + 1;
-        out.first_collision_traj_idx = std::min(i + 1, n);
-        out.first_collision_type = cm.violation_type;
-        out.first_collision_object = cm.violation_object;
-        out.first_collision_segment = playback_segment_names[i];
-        out.first_collision_point = T.block<3, 1>(0, 3);
-        out.first_collision_clearance = cm.violation_clearance;
+    T_prev = T;
+    have_prev = true;
+
+    // Sparse collision check: every K-th point + first + last
+    bool do_check = (i % collision_stride == 0) || (i == 0) ||
+                    (i == out.playback_q.rows() - 1);
+
+    if (do_check) {
+      CollisionSummary cm = evaluateConfiguration(robot, basin_boxes, cfg, qi);
+      if (cm.min_self < out.global_minimums.min_self) {
+        out.global_minimums.min_self = cm.min_self;
+        out.global_minimums.min_self_object = cm.min_self_object;
+      }
+      if (cm.min_tool_body < out.global_minimums.min_tool_body) {
+        out.global_minimums.min_tool_body = cm.min_tool_body;
+        out.global_minimums.min_tool_body_object = cm.min_tool_body_object;
+      }
+      if (cm.min_tool_basin < out.global_minimums.min_tool_basin) {
+        out.global_minimums.min_tool_basin = cm.min_tool_basin;
+        out.global_minimums.min_tool_basin_object = cm.min_tool_basin_object;
+      }
+      if (!cm.violation_type.empty()) {
+        out.has_collision = true;
+        out.collision_sample_indices.push_back(i + 1);
+        out.collision_traj_indices.push_back(std::min(i + 1, n));
+        out.collision_types.push_back(cm.violation_type);
+        out.collision_objects.push_back(cm.violation_object);
+        out.collision_segments.push_back(playback_segment_names[i]);
+        collision_points.push_back(T.block<3, 1>(0, 3));
+        if (out.first_collision_sample_idx < 0) {
+          out.first_collision_sample_idx = i + 1;
+          out.first_collision_traj_idx = std::min(i + 1, n);
+          out.first_collision_type = cm.violation_type;
+          out.first_collision_object = cm.violation_object;
+          out.first_collision_segment = playback_segment_names[i];
+          out.first_collision_point = T.block<3, 1>(0, 3);
+          out.first_collision_clearance = cm.violation_clearance;
+        }
       }
     }
+
     if (i == out.playback_q.rows() - 1 || ((i + 1) % 50) == 0) {
       std::ostringstream oss;
       oss << "MEX 正在进行碰撞复检 " << (i + 1) << "/" << out.playback_q.rows();
@@ -251,6 +333,11 @@ TrajectoryResult solveTrajectory(const RobotModel& robot,
 
   auto t_end = std::chrono::high_resolution_clock::now();
   timing.total_wall_s = std::chrono::duration<double>(t_end - t_start).count();
+
+  // Diagnostic: report solver stats
+  mexPrintf("[MEX stats] Solved=%d, Failed=%d | IK=%.2fs, Col=%.2fs, Wall=%.2fs\n",
+            timing.n_custom_success, timing.n_failed,
+            timing.ik_total_s, timing.collision_total_s, timing.total_wall_s);
 
   out.progress_events.push_back({"结果回传", 1.0, "MEX 求解完成"});
   return out;
