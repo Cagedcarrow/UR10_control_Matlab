@@ -1,5 +1,7 @@
 # UR10_control_Matlab 项目交接说明
 
+> 📖 **技术文档**: [realtime_trajectory_fit_gui 技术文档](https://cagedcarrow.github.io/UR10_control_Matlab/realtime_trajectory_fit_gui_技术文档/) (GitHub Pages)
+
 ## 1. 当前主线
 
 本仓库当前的主线已经不是旧的 `test/virtual` 电流模型链路，而是：
