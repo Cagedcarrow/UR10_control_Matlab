@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>模块架构与连接关系 — UR10 轨迹拟合</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true,theme:'dark',themeVariables:{primaryColor:'#58a6ff',lineColor:'#58a6ff',textColor:'#e6edf3'}});</script>
+<style>
+:root {
+  --bg-primary:#0d1117;--bg-secondary:#161b22;--bg-card:#1c2333;--bg-code:#0d1117;
+  --text-primary:#e6edf3;--text-secondary:#8b949e;--text-muted:#6e7681;
+  --accent:#58a6ff;--accent-green:#3fb950;--accent-orange:#d29922;--accent-purple:#a371f7;--accent-red:#f85149;
+  --border:#30363d;--shadow:0 2px 8px rgba(0,0,0,0.4);--radius:8px;
+  --font-mono:'JetBrains Mono','Fira Code','Cascadia Code','Consolas',monospace;
+  --font-sans:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans SC',sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;font-size:15px}
+body{font-family:var(--font-sans);background:var(--bg-primary);color:var(--text-primary);line-height:1.7;min-height:100vh}
+.main{max-width:1100px;margin:0 auto;padding:2rem 2rem 3rem}
+h1{font-size:2rem;border-bottom:2px solid var(--accent);padding-bottom:0.5rem;margin-bottom:0.25rem}
+.subtitle{color:var(--text-secondary);margin-bottom:2rem}
+h2{color:var(--accent-orange);margin:2.5rem 0 1rem;font-size:1.4rem}
+h3{color:var(--accent);margin:1.5rem 0 0.5rem}
+p{margin:0.75rem 0}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+code{font-family:var(--font-mono);background:var(--bg-code);padding:0.15em 0.4em;border-radius:4px;font-size:0.9em;border:1px solid var(--border)}
+pre{background:var(--bg-code);padding:1rem;border-radius:6px;overflow-x:auto;margin:1rem 0;border:1px solid var(--border)}
+pre code{padding:0;border:none;background:none}
+table{border-collapse:collapse;width:100%;margin:1rem 0}
+th,td{border:1px solid var(--border);padding:0.55rem 0.8rem;text-align:left}
+th{background:var(--bg-secondary);font-weight:600;color:var(--accent)}
+.mermaid{background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:1.5rem;margin:1.25rem 0;overflow-x:auto}
+.notice{border-left:3px solid var(--accent);background:rgba(88,166,255,0.08);padding:0.75rem 1rem;border-radius:0 var(--radius) var(--radius) 0;margin:1rem 0}
+.notice.info{border-left-color:var(--accent-green);background:rgba(63,185,80,0.08)}
+.nav-links{margin-top:3rem;padding-top:1.5rem;border-top:1px solid var(--border);display:flex;justify-content:space-between;font-size:0.95rem}
+footer{text-align:center;color:var(--text-muted);font-size:0.85rem;margin-top:2rem;padding-top:1.5rem;border-top:1px solid var(--border)}
+</style>
+</head>
+<body>
+<div class="main">
+
+<h1>1. 模块架构与连接关系</h1>
+<p class="subtitle">主程序与各功能模块的调用关系、数据流设计</p>
+
+<h2>1.1 系统总览</h2>
+
+<p><code>main_realtime_trajectory_fit_gui.m</code> 是整个应用的入口，它通过 <strong>action-dispatcher 模式</strong> 调用 8 个功能模块。每个模块都是一个以字符串 action 为第一参数的函数分发器。</p>
+
+<div class="mermaid">
+graph TB
+    MAIN["main_realtime_trajectory_fit_gui.m<br/>GUI 主循环 + 回调注册"]
+    KIN["rtfg_kinematics.m<br/>运动学控制器"]
+    RENDER["rtfg_render.m<br/>3D 场景渲染"]
+    COLLISION["rtfg_collision.m<br/>碰撞检测"]
+    UTILS["rtfg_utils.m<br/>工具函数"]
+    IO["rtfg_io.m<br/>文件读写"]
+    UI["rtfg_ui.m<br/>界面构建"]
+    UI_TEXT["rtfg_ui_text.m<br/>文本格式化"]
+    QUINTIC["rtfg_quintic_joint_series.m<br/>五次样条插值"]
+
+    MEX["rtfg_solver_mex<br/>(C++ MEX)"]
+    BUILD_STATE["build_gui_state.m<br/>(外部)"]
+    GEN_TRAJ["generate_trajectory_3d.m<br/>(外部)"]
+
+    MAIN -->|"moveToStart / trackTrajectory / playPreview"| KIN
+    MAIN -->|"refreshScene / renderScene / getPresetView"| RENDER
+    MAIN -->|"buildConfig / emptyResults"| COLLISION
+    MAIN -->|"buildPaths / loadFallbackPose / readRuntimeConfig"| IO
+    MAIN -->|"buildMainUi / updateSummaries / setRunEnabled"| UI
+    MAIN -->|"build_gui_state(...)"| BUILD_STATE
+
+    KIN -->|"applyPoseToTrajectory / computeTcpPath"| UTILS
+    KIN -->|"rtfg_solver_mex(...)"| MEX
+    KIN -->|"evaluateTrajectory / summarizeResults"| COLLISION
+    KIN -->|"generate_trajectory_3d(...)"| GEN_TRAJ
+    KIN -->|"rtfg_quintic_joint_series(...)"| QUINTIC
+
+    RENDER -->|"applyPoseToTrajectory / getTcpPosition"| UTILS
+    RENDER -->|"generate_trajectory_3d(...)"| GEN_TRAJ
+    RENDER -->|"buildEnvironment"| COLLISION
+    RENDER -->|"buildPreviewUrdfText"| IO
+
+    UI -->|"trajectorySummary / poseSummary"| UI_TEXT
+
+    style MAIN fill:#1c2333,stroke:#58a6ff,stroke-width:2px
+    style KIN fill:#1c2333,stroke:#d29922,stroke-width:2px
+    style MEX fill:#1c2333,stroke:#3fb950,stroke-width:2px
+</div>
+
+<h2>1.2 Action-Dispatcher 模式</h2>
+<p>每个功能模块遵循统一的调用约定：</p>
+<pre><code class="language-matlab">function varargout = module_name(action, varargin)
+    switch action
+        case 'action1'
+            [out1, out2] = localFunction1(varargin{:});
+        case 'action2'
+            ...
+    end
+end</code></pre>
+<p>这种模式使得每个模块对外暴露一组具名操作，内部实现对调用者透明，便于独立测试和替换（如将 MATLAB 碰撞检测替换为 C++ FCL）。</p>
+
+<h2>1.3 模块职责详解</h2>
+
+<h3>MATLAB 层（8 个模块）</h3>
+<table>
+  <tr><th>模块</th><th>文件</th><th>Action 数量</th><th>核心职责</th></tr>
+  <tr><td>运动学</td><td><code>kinematics/rtfg_kinematics.m</code></td><td>3</td><td>moveToTrajectoryStart / trackTrajectory / playPreviewTrajectory。内含 MEX 快速路径 + MATLAB 回退路径，以及 ~30 个内部辅助函数（IK 求解、种子生成、锚点规划、回放生成）</td></tr>
+  <tr><td>碰撞检测</td><td><code>collision/rtfg_collision.m</code></td><td>6</td><td>buildConfig / emptyResults / buildEnvironment / evaluateConfiguration / evaluateTrajectory / summarizeResults</td></tr>
+  <tr><td>场景渲染</td><td><code>rendering/rtfg_render.m</code></td><td>4</td><td>refreshScene / renderScene / captureCameraState / getPresetView。使用 MATLAB <code>importrobot</code> + <code>show()</code></td></tr>
+  <tr><td>工具函数</td><td><code>utils/rtfg_utils.m</code></td><td>10</td><td>applyPoseToTrajectory / computeTcpPath / rt2tform / poseRotationMatrix 等</td></tr>
+  <tr><td>IO</td><td><code>io/rtfg_io.m</code></td><td>11</td><td>buildPaths / readRuntimeConfigYaml / writePoseToUrdf / readInitialJointPosition 等</td></tr>
+  <tr><td>UI</td><td><code>ui/rtfg_ui.m</code></td><td>7</td><td>buildMainUi / openTrajectoryWindow / updateSummaries / setProgress 等</td></tr>
+  <tr><td>UI 文本</td><td><code>ui/rtfg_ui_text.m</code></td><td>2</td><td>trajectorySummary / poseSummary 格式化</td></tr>
+  <tr><td>五次样条</td><td><code>trajectory/rtfg_quintic_joint_series.m</code></td><td>1</td><td>生成 N 点 quintic blend 关节空间轨迹</td></tr>
+</table>
+
+<h3>C++ MEX 层（6 个源文件 + 1 个头文件）</h3>
+<table>
+  <tr><th>模块</th><th>文件</th><th>核心职责</th></tr>
+  <tr><td>类型定义</td><td><code>mex/src/types.h</code></td><td>全部数据结构（RobotModel, CandidateInfo, CollisionSummary, TrajectoryResult 等）和类型别名</td></tr>
+  <tr><td>工具函数</td><td><code>mex/src/utils.h/cpp</code></td><td>姿态误差 poseError、连续性代价 continuityCost、五次混合 quinticBlend、mxArray 转换</td></tr>
+  <tr><td>机器人模型</td><td><code>mex/src/robot_model.h/cpp</code></td><td>URDF 加载、正运动学 FK、数值雅可比 numericJacobian、关节限位/对齐</td></tr>
+  <tr><td>IK 求解器</td><td><code>mex/src/ik_solver.h/cpp</code></td><td>阻尼最小二乘 IK、多种子生成（局部+全局）、自适应阻尼</td></tr>
+  <tr><td>碰撞检测</td><td><code>mex/src/collision_checker.h/cpp</code></td><td>FCL 距离查询、三类碰撞区分、thread_local 对象缓存</td></tr>
+  <tr><td>轨迹求解</td><td><code>mex/src/trajectory_solver.h/cpp</code></td><td>编排器：多种子调度 → 锚点 IK → 回放生成 → 碰撞审计</td></tr>
+  <tr><td>MEX 入口</td><td><code>mex/src/mex_entry.cpp</code></td><td>MATLAB ↔ C++ 参数解析与结果封装</td></tr>
+</table>
+
+<div class="notice info">
+  <strong>注意：</strong>旧单体文件 <code>mex/src/rtfg_solver_mex.cpp</code>（约 1140 行）已在优化过程中删除，功能由上述 7 个模块化文件替代。
+</div>
+
+<h2>1.4 主程序回调流程</h2>
+
+<div class="mermaid">
+graph LR
+    A["用户点击<br/>'轨迹拟合'按钮"] --> B["trackTcpTrajectory 回调"]
+    B --> C["invalidatePreviewResults"]
+    C --> D["rtfg_kinematics<br/>('trackTrajectory', state)"]
+    D --> E{"MEX 可用?"}
+    E -->|"是"| F["runMexTrajectorySolver<br/>→ rtfg_solver_mex"]
+    E -->|"否/失败"| G["trackTrajectoryLegacy<br/>(MATLAB 回退)"]
+    F --> H["提取 anchorQ / playbackQ /<br/>collisionResults / timing"]
+    G --> H
+    H --> I["updateSummaries"]
+    I --> J["rtfg_render('renderScene')"]
+    J --> K["rtfg_ui('setRunEnabled', true)"]
+
+    style A fill:#1c2333,stroke:#d29922
+    style F fill:#1c2333,stroke:#3fb950,stroke-width:2px
+    style G fill:#1c2333,stroke:#f85149
+</div>
+
+<h2>1.5 数据流：state 结构体</h2>
+<p>整个应用共享一个 <strong><code>state</code></strong> 结构体，在所有模块间传递：</p>
+
+<pre><code class="language-text">state
+├── .robot           — rigidBodyTree 对象 (MATLAB) / KDL Chain (C++)
+├── .trajParams      — 轨迹参数 (mudHeight, approachAngle, arcRadius, ...)
+├── .pose            — 铲斗位姿 (x, y, z, rollDeg, pitchDeg, yawDeg)
+├── .envGeom         — 料斗几何 (basin.innerXMin, floorZ, ...)
+├── .traj            — 原始轨迹 (generate_trajectory_3d 输出)
+├── .displayTraj     — 应用位姿后的轨迹
+├── .previewQSeries  — 拟合后的回放关节序列
+├── .previewMetrics  — 最大关节步长、旋转增量等统计
+├── .collisionResults — 碰撞检测结果
+├── .statusText      — 当前状态描述
+├── .progress        — 进度 (0~1)
+└── .runEnabled      — 是否允许播放</code></pre>
+
+<h2>1.6 MEX 调用路径详解</h2>
+
+<p>当 <code>rtfg_kinematics('trackTrajectory', state)</code> 被调用时，MEX 快速路径的执行流程如下：</p>
+
+<ol>
+  <li><strong>验证 MEX 存在</strong>：<code>exist('rtfg_solver_mex', 'file') == 3</code></li>
+  <li><strong>构建 inputStruct</strong>：
+    <ul>
+      <li><code>targetTforms</code>：4×4×N 齐次变换矩阵（通过 <code>buildTrajectoryTargetPlan</code> 生成）</li>
+      <li><code>sceneUrdf / collisionUrdf</code>：URDF 文件路径</li>
+      <li><code>currentQ / initialQ</code>：当前关节角 / 初始关节角</li>
+      <li><code>segmentNames</code>：每点的段标签（approach / arc / lift）</li>
+      <li><code>basinBoxes</code>：料斗碰撞盒</li>
+    </ul>
+  </li>
+  <li><strong>调用 MEX</strong>：<code>solverResult = rtfg_solver_mex(inputStruct)</code></li>
+  <li><strong>提取结果</strong>：anchorQSeries、playbackQSeries、tcpPath、collisionResults、previewMetrics、progressEvents</li>
+</ol>
+
+<div class="mermaid">
+graph TB
+    subgraph MATLAB
+        A["rtfg_kinematics('trackTrajectory')"]
+        B["构建 targetTforms<br/>(4×4×N 矩阵)"]
+        C["构建 basinBoxes<br/>(struct array)"]
+        D["调用 rtfg_solver_mex"]
+    end
+    subgraph C++ MEX
+        E["mex_entry.cpp<br/>解析 mxArray → Eigen"]
+        F["loadRobotModel<br/>URDF → KDL Chain"]
+        G["solveTrajectory<br/>编排器"]
+        H["返回 anchorQ + playbackQ<br/>+ collision + metrics"]
+    end
+    A --> B --> D
+    A --> C --> D
+    D --> E --> F --> G --> H --> D
+    D --> A
+
+    style D fill:#1c2333,stroke:#3fb950,stroke-width:3px
+</div>
+
+<div class="nav-links">
+  <a href="index.html">← 返回索引</a>
+  <a href="cpp_acceleration_design.html">2. C++ 加速代码设计 →</a>
+</div>
+<footer><p>最后更新: 2026-05-29</p></footer>
+</div>
+</body>
+</html>

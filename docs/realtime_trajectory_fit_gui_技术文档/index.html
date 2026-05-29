@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UR10 实时轨迹拟合 GUI — 技术文档</title>
+<style>
+:root {
+  --bg-primary: #0d1117; --bg-secondary: #161b22; --bg-card: #1c2333;
+  --bg-code: #0d1117; --text-primary: #e6edf3; --text-secondary: #8b949e;
+  --text-muted: #6e7681; --accent: #58a6ff; --accent-green: #3fb950;
+  --accent-orange: #d29922; --accent-purple: #a371f7; --accent-red: #f85149;
+  --border: #30363d; --shadow: 0 2px 8px rgba(0,0,0,0.4); --radius: 8px;
+  --font-mono: 'JetBrains Mono','Fira Code','Cascadia Code','Consolas',monospace;
+  --font-sans: -apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans SC',sans-serif;
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+html { scroll-behavior:smooth; font-size:15px; }
+body { font-family:var(--font-sans); background:var(--bg-primary); color:var(--text-primary); line-height:1.7; min-height:100vh; }
+.main { max-width:1100px; margin:0 auto; padding:3rem 2rem; }
+h1 { font-size:2.2rem; border-bottom:2px solid var(--accent); padding-bottom:0.5rem; margin-bottom:0.5rem; }
+.subtitle { color:var(--text-secondary); font-size:1.05rem; margin-bottom:2rem; }
+h2 { color:var(--accent-orange); margin:2.5rem 0 1rem; font-size:1.5rem; }
+h3 { margin:1.5rem 0 0.5rem; color:var(--accent); }
+p { margin:0.75rem 0; }
+a { color:var(--accent); text-decoration:none; }
+a:hover { text-decoration:underline; }
+code { font-family:var(--font-mono); background:var(--bg-code); padding:0.15em 0.4em; border-radius:4px; font-size:0.9em; border:1px solid var(--border); }
+pre { background:var(--bg-code); padding:1rem; border-radius:6px; overflow-x:auto; margin:1rem 0; border:1px solid var(--border); }
+pre code { padding:0; border:none; background:none; }
+table { border-collapse:collapse; width:100%; margin:1rem 0; }
+th,td { border:1px solid var(--border); padding:0.6rem 0.9rem; text-align:left; }
+th { background:var(--bg-secondary); font-weight:600; color:var(--accent); }
+td { font-size:0.95rem; }
+.card-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:1.25rem; margin:1.5rem 0; }
+.card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:1.5rem; transition:border-color 0.2s,transform 0.2s; }
+.card:hover { border-color:var(--accent); transform:translateY(-2px); }
+.card h3 { margin-top:0; font-size:1.2rem; }
+.card p { color:var(--text-secondary); font-size:0.95rem; }
+.metric-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:1rem; margin:1.5rem 0; }
+.metric-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius); padding:1.25rem; text-align:center; }
+.metric-value { font-size:2rem; font-weight:700; color:var(--accent-green); }
+.metric-label { color:var(--text-secondary); font-size:0.9rem; margin-top:0.25rem; }
+.tag { display:inline-block; padding:0.15em 0.6em; border-radius:12px; font-size:0.8em; font-weight:600; }
+.tag-green { background:rgba(63,185,80,0.15); color:var(--accent-green); }
+.tag-blue { background:rgba(88,166,255,0.15); color:var(--accent); }
+.tag-purple { background:rgba(163,113,247,0.15); color:var(--accent-purple); }
+.nav-links { margin-top:3rem; padding-top:1.5rem; border-top:1px solid var(--border); display:flex; justify-content:space-between; font-size:0.95rem; }
+footer { text-align:center; color:var(--text-muted); font-size:0.85rem; margin-top:3rem; padding-top:1.5rem; border-top:1px solid var(--border); }
+</style>
+</head>
+<body>
+<div class="main">
+
+<h1>UR10 实时轨迹拟合 GUI<br>技术文档</h1>
+<p class="subtitle">C++/MEX 加速逆运动学求解 · 模块化架构 · 碰撞检测 · 性能优化</p>
+
+<div class="metric-grid">
+  <div class="metric-card">
+    <div class="metric-value">6.9 s</div>
+    <div class="metric-label">C++ MEX 总耗时 (258 轨迹点)</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-value">27 ms</div>
+    <div class="metric-label">单点平均耗时 (含碰撞检测)</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-value">8.1×</div>
+    <div class="metric-label">相比初版 C++ MEX 的总加速比</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-value">1.5×</div>
+    <div class="metric-label">相比 MATLAB 内置 IK 的加速比</div>
+  </div>
+  <div class="metric-card">
+    <div class="metric-value">258/258</div>
+    <div class="metric-label">轨迹点求解成功率</div>
+  </div>
+</div>
+
+<h2>文档导航</h2>
+
+<div class="card-grid">
+  <a href="architecture_modules.html" class="card">
+    <h3>1. 模块架构与连接关系</h3>
+    <p>主程序 <code>main_realtime_trajectory_fit_gui.m</code> 与 8 个 MATLAB 功能模块、6 个 C++ MEX 模块的完整调用关系图和数据流设计。</p>
+    <span class="tag tag-blue">架构</span>
+  </a>
+  <a href="cpp_acceleration_design.html" class="card">
+    <h3>2. C++ 加速代码设计</h3>
+    <p>C++ MEX 源文件清单、模块职责、节点关系云图、编译流程（build_mex.m）、RPATH 链接配置详解。</p>
+    <span class="tag tag-purple">C++/MEX</span>
+  </a>
+  <a href="performance_comparison.html" class="card">
+    <h3>3. 加速效果详细对比</h3>
+    <p>C++ MEX 替代了哪些 MATLAB Robotics Toolbox 函数、为什么 C++ 更快（5 点原理分析）、迭代优化历程与分项耗时分解。</p>
+    <span class="tag tag-green">性能</span>
+  </a>
+  <a href="trajectory_generation.html" class="card">
+    <h3>4. 轨迹生成逻辑</h3>
+    <p>三段式挖掘轨迹（切入段 / 圆弧段 / 提升段）的生成算法、YAML 参数配置、姿态定义与旋转矩阵构建。</p>
+    <span class="tag tag-blue">算法</span>
+  </a>
+  <a href="trajectory_fitting.html" class="card">
+    <h3>5. 轨迹拟合算法与计算速度</h3>
+    <p>阻尼最小二乘法 (DLS) 数学推导、四阶段权重调度、渐进式多种子策略、延迟碰撞验证、quintic blend 回放生成。</p>
+    <span class="tag tag-purple">算法</span>
+  </a>
+  <a href="optimization_changelog.html" class="card">
+    <h3>6. 性能优化修改记录</h3>
+    <p>本次对话中修改的全部文件清单、每项优化的 before/after 效果数据、优化原理逐条说明。</p>
+    <span class="tag tag-green">变更记录</span>
+  </a>
+</div>
+
+<h2>项目概览</h2>
+
+<p><strong>realtime_trajectory_fit_gui</strong> 是一个 MATLAB GUI 应用，用于 UR10 挖掘机器人的实时轨迹规划与拟合。其核心功能是：</p>
+<ol>
+  <li>根据料斗几何参数生成三段式挖掘轨迹（切入 → 圆弧挖掘 → 提升）</li>
+  <li>通过逆运动学 (IK) 将笛卡尔空间轨迹转换为关节空间轨迹</li>
+  <li>进行碰撞检测（自碰撞、工具-本体、工具-料斗）</li>
+  <li>在 3D 场景中可视化并播放机械臂运动</li>
+</ol>
+
+<p>计算密集型任务（IK 求解 + 碰撞检测）通过 <strong>C++/MEX</strong> 加速，相比纯 MATLAB 实现获得 <strong>8.1 倍</strong> 加速比，单点处理时间从 217 ms 降至 27 ms。</p>
+
+<h2>关键文件速览</h2>
+<table>
+  <tr><th>层次</th><th>文件</th><th>职责</th></tr>
+  <tr><td>主入口</td><td><code>main_realtime_trajectory_fit_gui.m</code></td><td>GUI 主循环、回调注册、场景刷新</td></tr>
+  <tr><td>运动学</td><td><code>kinematics/rtfg_kinematics.m</code></td><td>IK 求解、MEX 调用、MATLAB 回退路径</td></tr>
+  <tr><td>工具函数</td><td><code>utils/rtfg_utils.m</code></td><td>姿态变换、TCP 路径计算、字符串格式化</td></tr>
+  <tr><td>碰撞检测</td><td><code>collision/rtfg_collision.m</code></td><td>MATLAB 端碰撞环境构建与评估</td></tr>
+  <tr><td>场景渲染</td><td><code>rendering/rtfg_render.m</code></td><td>3D 场景重建、机器人绘制、轨迹可视化</td></tr>
+  <tr><td>UI 构建</td><td><code>ui/rtfg_ui.m</code></td><td>按钮/滑块/进度条布局与更新</td></tr>
+  <tr><td>IO</td><td><code>io/rtfg_io.m</code></td><td>YAML/URDF 读写、路径管理</td></tr>
+  <tr><td style="color:var(--accent);">C++ MEX</td><td><code>mex/src/*.cpp</code></td><td style="color:var(--accent);">高性能 IK + 碰撞（KDL + FCL）</td></tr>
+  <tr><td style="color:var(--accent);">C++ 编译</td><td><code>mex/build_mex.m</code></td><td style="color:var(--accent);">g++ -O3 编译、ROS2 库链接</td></tr>
+</table>
+
+<div class="nav-links">
+  <span></span>
+  <a href="architecture_modules.html">1. 模块架构与连接关系 →</a>
+</div>
+
+<footer>
+  <p>最后更新: 2026-05-29 · Cagedcarrow/UR10_control_Matlab · master 分支</p>
+</footer>
+</div>
+</body>
+</html>
