@@ -470,4 +470,17 @@
     <child link="shovel_right_link" />
     <axis xyz="0 0 0" />
   </joint>
+  <link name="shovel_surface_center_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <mass value="1e-08" />
+      <inertia ixx="1e-12" ixy="0" ixz="0" iyy="1e-12" iyz="0" izz="1e-12" />
+    </inertial>
+  </link>
+  <joint name="shovel_surface_center_frame" type="fixed">
+    <origin xyz="0.0287793333333 0.00000833333333 -0.261833333333" rpy="-0.95993 0 -1.5708" />
+    <parent link="shovel_base_link" />
+    <child link="shovel_surface_center_link" />
+    <axis xyz="0 0 0" />
+  </joint>
 </robot>

@@ -1,0 +1,13 @@
+现在我要完成的任务是控制铲子面进行抹泥，也就是轨迹拟合，具体操作步骤如下：
+1：shovel_right_link，left，forward以及这三个坐标系构成的三角形的质心center_link,这四个是用来反映铲面的
+
+2：center_link的z轴可以看作是铲面的法向量，可以用来控制和需要拟合平面的夹角
+
+3：block_basin_back_wall是需要铲子面与其接触的平面
+
+4：shovel_base_link是一个旋转自由度，用来控制铲面的旋转，与ur10机械臂的六个自由度配合在一起为7个自由度
+
+现在我要做的是：控制ur10机械臂以及shovel_base_link的旋转自由度来控制铲面与block_basin_back_wall面进行拟合，拟合高度轨迹就定在从20cm-60cm结束，现在要求铲面的z轴与世界坐标系的y轴负向成锐角进行拟合，可以有偏差但是不能过大
+
+将运动学程序等都写在shovel_with_tcp_rot/mud_smearing_trajectory_fitting里面注意模块化编程，不同功能的文件要放在不同的文件夹里面
+最后写一个main主程序，用来计算轨迹后并且播放动画并可选保存为目录下video里面的mp4文件（从urdf当前姿态运动到拟合开始到结束）

@@ -68,7 +68,34 @@ drawScene();
         grid(ax, "on");
         view(ax, 135, 20);
         title(ax, "claying\_shovel\_env");
+        drawShovelSurfacePlane();
         drawnow limitrate;
+    end
+
+    function drawShovelSurfacePlane()
+        pointLinks = ["shovel_forward_link", "shovel_left_link", "shovel_right_link"];
+        if ~all(ismember(pointLinks, string(robot.BodyNames)))
+            warning("Shovel surface point links were not all found. Red plane was not drawn.");
+            return;
+        end
+
+        points = zeros(3, 3);
+        for pointIndex = 1:3
+            tform = getTransform(robot, config, pointLinks(pointIndex));
+            points(pointIndex, :) = tform(1:3, 4).';
+        end
+
+        hold(ax, "on");
+        patch(ax, ...
+            "Faces", [1 2 3], ...
+            "Vertices", points, ...
+            "FaceColor", "r", ...
+            "FaceAlpha", 0.35, ...
+            "EdgeColor", "r", ...
+            "LineWidth", 2);
+        scatter3(ax, points(:, 1), points(:, 2), points(:, 3), ...
+            50, "r", "filled");
+        hold(ax, "off");
     end
 end
 
